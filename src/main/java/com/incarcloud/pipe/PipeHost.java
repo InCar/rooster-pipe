@@ -16,7 +16,7 @@ public class PipeHost {
         return null;
     }
 
-    public void setBIgMQ(IBigMQ bigMQ){
+    public void setBigMQ(IBigMQ bigMQ){
 
     }
 
