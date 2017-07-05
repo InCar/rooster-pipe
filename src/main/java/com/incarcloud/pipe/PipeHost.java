@@ -1,23 +1,144 @@
 package com.incarcloud.pipe;
 
+import com.incarcloud.rooster.bigtable.IBigTable;
+import com.incarcloud.rooster.datapack.DataParserManager;
+import com.incarcloud.rooster.datatarget.DataTarget;
 import com.incarcloud.rooster.mq.IBigMQ;
+import com.incarcloud.rooster.mq.MQMsg;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+
+/**
+ * @author Xiong Guanghua
+ * @Description: 管道主机
+ * @date 2017年6月2日 下午3:55:17
+ */
 public class PipeHost {
+    private static Logger s_logger = LoggerFactory.getLogger(PipeHost.class);
 
-    public void start(){
+    static {
+        //加载com.incarcloud.rooster.datapack包下的所有类，使得解析器注册到DataParserManager
+        DataParserManager.loadClassOfSamePackage();
+    }
+
+
+    /**
+     * 主机名
+     */
+    private String name;
+
+
+    /**
+     * 采集槽列表
+     */
+    private ArrayList<PipeSlot> _slots = new ArrayList<>();
+
+    /**
+     * 操作消息队列接口
+     */
+    private IBigMQ bigMQ;
+
+    /**
+     * bigtable的操作接口
+     */
+    private IBigTable bigTable;
+
+
+    /**
+     * 是否已启动
+     */
+    private Boolean _bRunning = false;
+
+    public PipeHost() {
+        this("pipehost" + Calendar.getInstance().getTimeInMillis());
+    }
+
+
+    /**
+     * @param name 主机名
+     */
+    public PipeHost(String name) {
+        this.name = name;
+//        _bossGroup = new NioEventLoopGroup();
+//        _workerGroup = new NioEventLoopGroup();
+    }
+
+
+    /**
+     * 启动
+     */
+    public void start() {
+        if (_bRunning)
+            return;
+
+        if (0 == _slots.size()) {
+            s_logger.error("no slot!!!");
+
+            System.exit(-1);
+        }
+
+        for (PipeSlot slot : _slots) {
+            slot.start();
+        }
+
+        _bRunning = true;
+        s_logger.info(name + "start success!!");
 
     }
 
-    public void stop(){
+    /**
+     * 停止
+     */
+    public void stop() {
 
+        for (PipeSlot slot : _slots) {
+            slot.stop();
+        }
+
+        _bRunning = false;
     }
 
-    public IBigMQ getBigMQ(){
-        return null;
+
+    /**
+     * 批量接收消息
+     *
+     * @param size 消息数量
+     * @return
+     */
+    public List<MQMsg> batchReceive(int size) {
+        return bigMQ.batchReceive(size);
     }
 
-    public void setBigMQ(IBigMQ bigMQ){
-
+    /**
+     * 保存数据
+     *
+     * @param rowKey    行健
+     * @param data      数据
+     * @param tableName 表名
+     * @throws Exception
+     */
+    public void saveDataTarget(String rowKey, DataTarget data, String tableName) throws Exception {
+        bigTable.save(rowKey, data, tableName);
     }
 
+
+    public void addSlot(PipeSlot slot) {
+        _slots.add(slot);
+    }
+
+    public void setBigMQ(IBigMQ bigMQ) {
+        this.bigMQ = bigMQ;
+    }
+
+    public void setBigTable(IBigTable bigTable) {
+        this.bigTable = bigTable;
+    }
+
+    public String getName() {
+        return name;
+    }
 }
