@@ -4,7 +4,6 @@ import com.incarcloud.rooster.datapack.*;
 import com.incarcloud.rooster.datatarget.DataTarget;
 import com.incarcloud.rooster.mq.MQMsg;
 import com.incarcloud.rooster.util.DataTargetUtils;
-import com.incarcloud.rooster.util.MQMsgUtil;
 import com.incarcloud.rooster.util.RowKeyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,14 +11,23 @@ import org.slf4j.LoggerFactory;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author Xiong Guanghua
- * @Description: 管道槽, 一个管道槽对应一种协议
+ * @Description: 管道槽, 一个管道槽对应一个队列
  * @date 2017年6月2日 下午3:55:17
  */
 public class PipeSlot {
     private static Logger s_logger = LoggerFactory.getLogger(PipeSlot.class);
+
+    /**
+     * 缓存解析器对象避免Eden区频繁GC
+     */
+    private static Map<String, IDataParser> dataParserCache = new ConcurrentHashMap<>();
+
+
     /**
      * 一批次接受消息的数量
      */
@@ -34,6 +42,7 @@ public class PipeSlot {
      * 采集槽所在主机
      */
     private PipeHost _host;
+
 
     /**
      * @param host 采集槽所在主机
@@ -53,11 +62,17 @@ public class PipeSlot {
     }
 
 
+    /**
+     * 启动
+     */
     public void start() {
         s_logger.info(name + " start  receive  message !!");
-        new Thread(new PipeSlotProccess(name+"-PipeSlotProccess")).start();
+        new Thread(new PipeSlotProccess(name + "-PipeSlotProccess")).start();
     }
 
+    /**
+     * 停止
+     */
     public void stop() {
 
     }
@@ -66,7 +81,7 @@ public class PipeSlot {
     private class PipeSlotProccess implements Runnable {
         private String name;
 
-        public  PipeSlotProccess(String name){
+        public PipeSlotProccess(String name) {
             this.name = name;
         }
 
@@ -94,26 +109,20 @@ public class PipeSlot {
 
 
                 for (MQMsg m : msgList) {
-
-//                System.out.println(MQMsgUtil.convertMQMsgToStr(m));
-                    DataPack dp = MQMsgUtil.convertMQMsgToDataPack(m);
-
-
-                    Class<?> clazz = null;
                     try {
-                        clazz = DataParserManager.getDataParserClass(m.getMark());
-//                        System.out.println("^^^^^^^^^^^^^"+m.getMark()+" "+clazz);
-                        if (null == clazz) {
-                            s_logger.error("no such data paser : " + m.getMark());
+
+                        DataPack dp = DataPack.deserializeFromBytes(m.getData());
+                        s_logger.debug("DataPack:"+dp.toString());
+
+                        IDataParser dataParser = getDataParser(m.getMark());
+                        if (null == dataParser) {
                             continue;
                         }
-                        IDataParser dataParser = (IDataParser) clazz.newInstance();
 
                         //第二步解析
                         List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);
-                        if(null == dataPackTargetList || 0 == dataPackTargetList.size()){
-                            s_logger.error("extractBody  null dataPackTargetList,"+dp);
-
+                        if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
+                            s_logger.error("extractBody  null dataPackTargetList," + m + dp);
                             continue;
                         }
 
@@ -128,8 +137,7 @@ public class PipeSlot {
 
 
                     } catch (Exception e) {
-                        e.printStackTrace();
-//                        s_logger.error("data paser constructor error : " + m.getMark() + "  " + clazz);
+                        s_logger.error("deal with msg error " + m + "\n" + e.getMessage());
                     }
 
                 }
@@ -137,6 +145,38 @@ public class PipeSlot {
 
             }
         }
+    }
+
+    /**
+     * 获取解析器对象
+     *
+     * @param mark
+     * @return
+     */
+    private IDataParser getDataParser(String mark) {
+        IDataParser dataParser = dataParserCache.get(mark);
+        if (null != dataParser) {
+            return dataParser;
+        }
+
+        Class<?> clazz = DataParserManager.getDataParserClass(mark);
+        if (null == clazz) {
+            s_logger.error("no such data paser : " + mark);
+            return null;
+        }
+
+        try {
+            dataParser = (IDataParser) clazz.newInstance();
+
+            if (null != dataParser) {
+                dataParserCache.put(mark, dataParser);
+            }
+        } catch (Exception e) {
+            s_logger.error(clazz + " newInstance error!!! " + e.getMessage());
+        }
+
+        return dataParser;
+
     }
 
 
@@ -161,11 +201,12 @@ public class PipeSlot {
         ETargetType type = target.getTargetType();
         String time = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(dataTarget.getDetectionDate());
 
-        String rowKey = RowKeyUtil.makeRowKey(dataTarget.getVin(),type.toString(),time);
+        String rowKey = RowKeyUtil.makeRowKey(dataTarget.getVin(), type.toString(), time);
+        s_logger.debug("$$$$$$$$"+dataTarget);
 
         try {
             _host.saveDataTarget(rowKey, dataTarget, DataTargetUtils.getTableName(type));
-        }catch (Exception e){
+        } catch (Exception e) {
             s_logger.error(e.getMessage());
         }
 
