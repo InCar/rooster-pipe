@@ -2,6 +2,7 @@ package com.incarcloud.pipe;
 
 import com.incarcloud.rooster.datapack.*;
 import com.incarcloud.rooster.datatarget.DataTarget;
+import com.incarcloud.rooster.mq.IBigMQ;
 import com.incarcloud.rooster.mq.MQMsg;
 import com.incarcloud.rooster.util.DataTargetUtils;
 import com.incarcloud.rooster.util.RowKeyUtil;
@@ -31,12 +32,27 @@ public class PipeSlot {
     /**
      * 一批次接受消息的数量
      */
-    private static int BATCH_RECEIVE_SIZE = 16;
+    private static final int BATCH_RECEIVE_SIZE = 16;
+    /**
+     * 工作线程数
+     */
+    private static final int WORK_THREAD_COUNT = 3;
 
     /**
      * 名称
      */
     private String name;
+
+    /**
+     * slot是否继续工作
+     */
+    private volatile boolean isRuning = false;
+
+
+    /**
+     * slot 工作线程组(后期可能需要管理线程)
+     */
+    private ThreadGroup workThreadGroup = new ThreadGroup(name + "workThreadGroup");
 
     /**
      * 采集槽所在主机
@@ -67,22 +83,36 @@ public class PipeSlot {
      */
     public void start() {
         s_logger.info(name + " start  receive  message !!");
-        new Thread(new PipeSlotProccess(name + "-PipeSlotProccess")).start();
+        isRuning = true;
+        //开个线程防止阻塞
+        for (int i = 0; i < WORK_THREAD_COUNT; i++) {
+            Thread workThread = new Thread(workThreadGroup, new PipeSlotProccess(name + "-PipeSlotProccess-" + i, _host.getBigMQ()));
+            workThread.start();
+        }
+
     }
 
     /**
      * 停止
      */
     public void stop() {
-
+        isRuning = false;
     }
 
 
+    /**
+     * slot主要工作线程
+     */
     private class PipeSlotProccess implements Runnable {
+        /**
+         * 线程名称
+         */
         private String name;
+        private IBigMQ iBigMQ;
 
-        public PipeSlotProccess(String name) {
+        public PipeSlotProccess(String name, IBigMQ iBigMQ) {
             this.name = name;
+            this.iBigMQ = iBigMQ;
         }
 
 
@@ -93,8 +123,9 @@ public class PipeSlot {
 
         @Override
         public void run() {
-            while (true) {
-                List<MQMsg> msgList = batchReceive(BATCH_RECEIVE_SIZE);
+
+            while (isRuning) {
+                List<MQMsg> msgList = iBigMQ.batchReceive(BATCH_RECEIVE_SIZE);
 
 
                 if (null == msgList) {
@@ -109,10 +140,11 @@ public class PipeSlot {
 
 
                 for (MQMsg m : msgList) {
-                    try {
+                    DataPack dp =null;
 
-                        DataPack dp = DataPack.deserializeFromBytes(m.getData());
-                        s_logger.debug("DataPack:"+dp.toString());
+                    try {
+                        dp =  DataPack.deserializeFromBytes(m.getData());
+                        s_logger.debug("DataPack:" + dp.toString());
 
                         IDataParser dataParser = getDataParser(m.getMark());
                         if (null == dataParser) {
@@ -121,6 +153,7 @@ public class PipeSlot {
 
                         //第二步解析
                         List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);
+
                         if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
                             s_logger.error("extractBody  null dataPackTargetList," + m + dp);
                             continue;
@@ -138,12 +171,20 @@ public class PipeSlot {
 
                     } catch (Exception e) {
                         s_logger.error("deal with msg error " + m + "\n" + e.getMessage());
+                    }finally {
+                        if(null != dp){
+                            dp.freeBuf();
+                        }
                     }
 
                 }
 
-
             }
+
+            //停止后释放iBigMQ
+            iBigMQ.close();
+
+
         }
     }
 
@@ -165,6 +206,7 @@ public class PipeSlot {
             return null;
         }
 
+
         try {
             dataParser = (IDataParser) clazz.newInstance();
 
@@ -181,34 +223,26 @@ public class PipeSlot {
 
 
     /**
-     * 批量接收消息
-     *
-     * @param size 消息数量
-     * @return
-     */
-    protected List<MQMsg> batchReceive(int size) {
-        return _host.batchReceive(size);
-    }
-
-
-    /**
      * 保存数据
      *
      * @param target
      */
     protected void saveDataTarget(DataPackTarget target) {
+
         DataTarget dataTarget = target.getDataTarget();
         ETargetType type = target.getTargetType();
         String time = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(dataTarget.getDetectionDate());
 
         String rowKey = RowKeyUtil.makeRowKey(dataTarget.getVin(), type.toString(), time);
-        s_logger.debug("$$$$$$$$"+dataTarget);
+        s_logger.debug("$$$$$$$$" + dataTarget);
 
         try {
             _host.saveDataTarget(rowKey, dataTarget, DataTargetUtils.getTableName(type));
         } catch (Exception e) {
             s_logger.error(e.getMessage());
         }
+
+        s_logger.debug("save success");
 
     }
 
