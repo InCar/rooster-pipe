@@ -88,6 +88,7 @@ public class PipeSlot {
         for (int i = 0; i < WORK_THREAD_COUNT; i++) {
             Thread workThread = new Thread(workThreadGroup, new PipeSlotProccess(name + "-PipeSlotProccess-" + i, _host.getBigMQ()));
             workThread.start();
+
         }
 
     }
@@ -96,7 +97,7 @@ public class PipeSlot {
      * 停止
      */
     public void stop() {
-        isRuning = false;
+        isRuning = false;//等待线程自己结束
     }
 
 
@@ -181,10 +182,8 @@ public class PipeSlot {
 
             }
 
-            //停止后释放iBigMQ
-            iBigMQ.close();
-
-
+            //停止后释放连接
+            iBigMQ.releaseCurrentConn();
         }
     }
 
