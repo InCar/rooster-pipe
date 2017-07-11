@@ -99,6 +99,9 @@ public class PipeHost {
             slot.stop();
         }
 
+        bigTable.close();
+        bigMQ.close();
+
         _bRunning = false;
     }
 
@@ -133,6 +136,12 @@ public class PipeHost {
     public void setBigMQ(IBigMQ bigMQ) {
         this.bigMQ = bigMQ;
     }
+
+    public IBigMQ getBigMQ() {
+        return bigMQ;
+    }
+
+
 
     public void setBigTable(IBigTable bigTable) {
         this.bigTable = bigTable;
