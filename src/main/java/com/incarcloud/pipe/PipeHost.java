@@ -94,13 +94,12 @@ public class PipeHost {
      * 停止
      */
     public void stop() {
-
         for (PipeSlot slot : _slots) {
             slot.stop();
         }
 
-        bigTable.close();
-        bigMQ.close();
+//        bigTable.close();
+//        bigMQ.close();
 
         _bRunning = false;
     }
