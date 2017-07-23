@@ -9,6 +9,7 @@ import com.incarcloud.rooster.util.RowKeyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -129,7 +130,7 @@ public class PipeSlot {
                 List<MQMsg> msgList = iBigMQ.batchReceive(BATCH_RECEIVE_SIZE);
 
 
-                if (null == msgList) {
+                if (null == msgList || 0==msgList.size()) {
                     s_logger.debug(name + "  receive no  message !!");
                     try {
                         Thread.sleep(3000);
@@ -171,6 +172,7 @@ public class PipeSlot {
 
 
                     } catch (Exception e) {
+                        e.printStackTrace();
                         s_logger.error("deal with msg error " + m + "\n" + e.getMessage());
                     }finally {
                         if(null != dp){
@@ -230,18 +232,30 @@ public class PipeSlot {
 
         DataTarget dataTarget = target.getDataTarget();
         ETargetType type = target.getTargetType();
-        String time = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(dataTarget.getDetectionDate());
+
+        DateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS");
+
+//        String time = dateFormat.format(null == dataTarget.getDetectionDate()?new Date():dataTarget.getDetectionDate());
+
+        //TODO 这里不是标准日期格式,需要转换为标准格式
+        String time = dataTarget.getDetectionDate();
+        if(null == time){
+            time = dateFormat.format(new Date());
+        }
+
 
         String rowKey = RowKeyUtil.makeRowKey(dataTarget.getVin(), type.toString(), time);
         s_logger.debug("$$$$$$$$" + dataTarget);
 
         try {
             _host.saveDataTarget(rowKey, dataTarget, DataTargetUtils.getTableName(type));
+            s_logger.debug("save success");
         } catch (Exception e) {
-            s_logger.error(e.getMessage());
+            e.printStackTrace();
+            s_logger.error("save failed   "+e.getMessage());
         }
 
-        s_logger.debug("save success");
+
 
     }
 
