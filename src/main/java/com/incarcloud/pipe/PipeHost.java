@@ -1,8 +1,8 @@
 package com.incarcloud.pipe;
 
 import com.incarcloud.rooster.bigtable.IBigTable;
+import com.incarcloud.rooster.datapack.DataPackObject;
 import com.incarcloud.rooster.datapack.DataParserManager;
-import com.incarcloud.rooster.datatarget.DataTarget;
 import com.incarcloud.rooster.mq.IBigMQ;
 import com.incarcloud.rooster.mq.MQMsg;
 import org.slf4j.Logger;
@@ -123,7 +123,7 @@ public class PipeHost {
      * @param tableName 表名
      * @throws Exception
      */
-    public void saveDataTarget(String rowKey, DataTarget data, String tableName) throws Exception {
+    public void saveDataTarget(String rowKey, DataPackObject data, String tableName) throws Exception {
         bigTable.save(rowKey, data, tableName);
     }
 
