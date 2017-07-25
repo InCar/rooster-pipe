@@ -14,8 +14,6 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -28,13 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class PipeSlot {
     private static Logger s_logger = LoggerFactory.getLogger(PipeSlot.class);
-
-
-    /**
-     * 缓存解析器对象避免Eden区频繁GC
-     */
-    private static Map<String, IDataParser> dataParserCache = new ConcurrentHashMap<>();
-
 
     /**
      * 一批次接受消息的数量
@@ -226,9 +217,9 @@ public class PipeSlot {
                         dp = DataPack.deserializeFromBytes(m.getData());
                         s_logger.debug("DataPack:" + dp.toString());
 
-                        IDataParser dataParser = getDataParser(m.getMark());
+                        IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
                         if (null == dataParser) {
-                            s_logger.error(" not support "+m.getMark());
+                            s_logger.error(" not support " + dp.getProtocol());
                             continue;
                         }
 
@@ -268,37 +259,7 @@ public class PipeSlot {
         }
     }
 
-    /**
-     * 获取解析器对象
-     *
-     * @param protocol
-     * @return
-     */
-    private IDataParser getDataParser(String protocol) {
-        IDataParser dataParser = dataParserCache.get(protocol);
-        if (null != dataParser) {
-            return dataParser;
-        }
 
-        Class<?> clazz = DataParserManager.getDataParserClass(protocol);
-        if (null == clazz) {
-            s_logger.error("no such data paser : " + protocol);
-            return null;
-        }
-
-
-        try {
-            dataParser = (IDataParser) clazz.newInstance();
-
-            if (null != dataParser) {
-                dataParserCache.put(protocol, dataParser);
-            }
-        } catch (Exception e) {
-            s_logger.error(clazz + " newInstance error!!! " + e.getMessage());
-        }
-
-        return dataParser;
-    }
 
 
     /**
@@ -331,7 +292,6 @@ public class PipeSlot {
         }
 
 
-
         //处理数据采集时间
         DateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS");
         Date minDate = null;//小于1977年的日期都认为是非法的日期（40年前哪里有联网的车载设备）
@@ -343,7 +303,10 @@ public class PipeSlot {
 
         Date detectionDate = dataPackObject.getDetectionDate();
         String time = null;
-        if (null == detectionDate || minDate.compareTo(detectionDate) > 0) {//日期没取到或是非法日期
+        if (dataPackObject instanceof DataPackPosition) {//位置数据会自带采集时间
+            DataPackPosition position = (DataPackPosition) dataPackObject;
+            time = dateFormat.format(position.getPositionDate());
+        }else if (null == detectionDate || minDate.compareTo(detectionDate) > 0) {//日期没取到或是非法日期
             detectionDate = new Date();
             time = dateFormat.format(detectionDate) + "N";//加"N"表示系统生成的日期
             dataPackObject.setDetectionDate(detectionDate);
@@ -378,7 +341,9 @@ public class PipeSlot {
     protected void dispatchDataPack(DataPackTarget target) {//TODO 待实现
         DataPackObject dataPackObject = target.getDataPackObject();
         String vin = dataPackObject.getVin();
-        if (StringUtil.isBlank(vin)) {return;}//无vin码数据丢弃
+        if (StringUtil.isBlank(vin)) {
+            return;
+        }//无vin码数据丢弃
 
 
     }
