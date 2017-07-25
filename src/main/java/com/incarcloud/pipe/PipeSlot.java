@@ -80,7 +80,7 @@ public class PipeSlot {
     /**
      * 统计间隔时间（秒）
      */
-    private int period = 2;
+    private int period = 10;
 
 
     /**
@@ -139,6 +139,7 @@ public class PipeSlot {
         //间隔一定时间监控运行状况
         scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
             public void run() {
+                s_logger.info("------");
 
                 //取出的消息数量
                 int _receiveFromMqDataCount = receiveFromMqDataCount.get();
@@ -158,6 +159,7 @@ public class PipeSlot {
                 s_logger.info(PipeSlot.this.name + " in last  " + period + " s, total "
                         + newReceiveFromMqDataCount + " msg receive  from mq,total "
                         + newSaveToBigtableDataCount + " saved to bigtable,total " + newSaveToBigtableFailedDataCount + " failed save to bigtable!!");
+
             }
         }, period, period, TimeUnit.SECONDS);
 
@@ -269,18 +271,18 @@ public class PipeSlot {
     /**
      * 获取解析器对象
      *
-     * @param mark
+     * @param protocol
      * @return
      */
-    private IDataParser getDataParser(String mark) {
-        IDataParser dataParser = dataParserCache.get(mark);
+    private IDataParser getDataParser(String protocol) {
+        IDataParser dataParser = dataParserCache.get(protocol);
         if (null != dataParser) {
             return dataParser;
         }
 
-        Class<?> clazz = DataParserManager.getDataParserClass(mark);
+        Class<?> clazz = DataParserManager.getDataParserClass(protocol);
         if (null == clazz) {
-            s_logger.error("no such data paser : " + mark);
+            s_logger.error("no such data paser : " + protocol);
             return null;
         }
 
@@ -289,7 +291,7 @@ public class PipeSlot {
             dataParser = (IDataParser) clazz.newInstance();
 
             if (null != dataParser) {
-                dataParserCache.put(mark, dataParser);
+                dataParserCache.put(protocol, dataParser);
             }
         } catch (Exception e) {
             s_logger.error(clazz + " newInstance error!!! " + e.getMessage());
