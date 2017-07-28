@@ -13,6 +13,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -120,6 +121,7 @@ public class PipeSlot {
     public void start() {
         s_logger.info(name + " start  receive  message !!");
         isRuning = true;
+
         //开个线程防止阻塞
         for (int i = 0; i < WORK_THREAD_COUNT; i++) {
             Thread workThread = new Thread(workThreadGroup, new PipeSlotProccess(name + "-PipeSlotProccess-" + i, _host.getBigMQ()));
@@ -193,6 +195,7 @@ public class PipeSlot {
         @Override
         public void run() {
 
+
             while (isRuning) {
                 List<MQMsg> msgList = iBigMQ.batchReceive(BATCH_RECEIVE_SIZE);
 
@@ -227,18 +230,26 @@ public class PipeSlot {
                         List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);
 
                         if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
-                            s_logger.error("extractBody  null dataPackTargetList," + m + dp);
+                            s_logger.info("extractBody  null dataPackTargetList," + m + dp);
                             continue;
                         }
 
+                        //对解析出的包进行预处理
+                        pretreatDataTragets(dataPackTargetList,dp.getReciveTime());
 
-                        for (DataPackTarget target : dataPackTargetList) {
-                            s_logger.debug(target.toString());
-                            //保存
-                            saveDataTarget(target);
-                            //TODO 分发
-                            dispatchDataPack(target);
+
+                        if (null != dataPackTargetList ||  dataPackTargetList.size() > 0) {
+                            for (DataPackTarget target : dataPackTargetList) {
+                                s_logger.debug(target.toString());
+                                //保存
+                                saveDataTarget(target);
+                                //TODO 分发
+                                dispatchDataPack(target);
+                            }
+                        }else{
+                            s_logger.error("dataPackTargetList  all  has no vin," + m + dp);
                         }
+
 
 
                     } catch (Exception e) {
@@ -260,6 +271,82 @@ public class PipeSlot {
     }
 
 
+    /**
+     * 对数据进行预处理（删掉无vin的数据，对采集时间字段为空或无效的数据进行处理）
+     * @param dataPackTargetList
+     * @param reciveTime 接收时间
+     */
+    private void pretreatDataTragets(List<DataPackTarget> dataPackTargetList,Date reciveTime){
+
+        Iterator<DataPackTarget> iter = dataPackTargetList.iterator();
+        //删掉无vin的数据
+        while (iter.hasNext()){
+            DataPackObject dataPackObject = iter.next().getDataPackObject();
+            String vin = dataPackObject.getVin();
+
+            if (StringUtil.isBlank(vin)) {//无vin码数据直接丢弃
+                s_logger.error("no vin,"+dataPackObject);
+                iter.remove();
+
+                /*  //TODO  不提供无vin码的支持
+                String deviceId = dataPackObject.getDeviceId();
+                if (StringUtil.isBlank(deviceId)) {//没有vin码时候,设备ID+协议代替vin码
+                    s_logger.error("invalid data : no  vin or deviceId,");
+                    saveToBigtableFailedDataCount.incrementAndGet();
+                    return;
+                }
+
+                vin = dataPackObject.getProtocolName() + "-" + deviceId;
+
+                */
+            }
+        }
+
+        //处理检测日期
+        /**
+         * 对于无采集时间或采集时间为非法时间
+         * 如果含有位置数据且位置数据带有采集时间则用位置数据的采集时间来重置所有包的采集时间，
+         * 否则用接收时间
+         */
+
+        //选取采集时间
+        Date detectionDate = reciveTime;
+        for (DataPackTarget target : dataPackTargetList) {//获取位置时间作为采集时间
+            if(target.getDataPackObject() instanceof DataPackPosition){
+                DataPackPosition position = (DataPackPosition)target.getDataPackObject();
+                if(null != position.getPositionDate()){
+                    detectionDate = position.getPositionDate();
+                    break;
+                }
+
+            }
+        }
+
+        for (DataPackTarget target : dataPackTargetList) {//校正非法采集时间
+            DataPackObject packObject = target.getDataPackObject();
+            if(packObject instanceof DataPackPosition){
+                DataPackPosition position = (DataPackPosition) packObject;
+                //对于位置数据，位置时间和采集时间哪个合法用哪个
+                if(DataPackObjectUtils.isLegalDetectionDate(position.getPositionDate())){
+                    position.setDetectionDate(position.getPositionDate());
+                }else if(DataPackObjectUtils.isLegalDetectionDate(position.getDetectionDate())){
+                    position.setPositionDate(position.getDetectionDate());
+                }else{
+                    position.setDetectionDate(detectionDate);
+                    position.setPositionDate(detectionDate);
+                }
+            }else if(!DataPackObjectUtils.isLegalDetectionDate(packObject.getDetectionDate())){//非位置数据采集时间非法
+                packObject.setDetectionDate(detectionDate);
+            }
+        }
+
+    }
+
+
+
+
+
+
 
 
     /**
@@ -270,50 +357,13 @@ public class PipeSlot {
     protected void saveDataTarget(DataPackTarget target) {
 
         DataPackObject dataPackObject = target.getDataPackObject();
-
         //获取vin码
         String vin = dataPackObject.getVin();
 
-        if (StringUtil.isBlank(vin)) {//无vin码数据直接丢弃
-            return;
-
-
-            /*  //TODO  不提供无vin码的支持
-            String deviceId = dataPackObject.getDeviceId();
-            if (StringUtil.isBlank(deviceId)) {//没有vin码时候,设备ID+协议代替vin码
-                s_logger.error("invalid data : no  vin or deviceId,");
-                saveToBigtableFailedDataCount.incrementAndGet();
-                return;
-            }
-
-            vin = dataPackObject.getProtocolName() + "-" + deviceId;
-
-            */
-        }
-
-
-        //处理数据采集时间
+        //数据采集时间
         DateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS");
-        Date minDate = null;//小于1977年的日期都认为是非法的日期（40年前哪里有联网的车载设备）
-        try {
-            minDate = dateFormat.parse("19770101000000000");
-        } catch (ParseException e) {//这里不会抛异常
-            e.printStackTrace();
-        }
-
         Date detectionDate = dataPackObject.getDetectionDate();
-        String time = null;
-        if (dataPackObject instanceof DataPackPosition) {//位置数据会自带采集时间
-            DataPackPosition position = (DataPackPosition) dataPackObject;
-            time = dateFormat.format(position.getPositionDate());
-        }else if (null == detectionDate || minDate.compareTo(detectionDate) > 0) {//日期没取到或是非法日期
-            detectionDate = new Date();
-            time = dateFormat.format(detectionDate) + "N";//加"N"表示系统生成的日期
-            dataPackObject.setDetectionDate(detectionDate);
-        } else {
-            time = dateFormat.format(detectionDate);
-        }
-
+        String time = dateFormat.format(detectionDate);
 
         //数据类型
         String dataType = DataPackObjectUtils.getDataType(dataPackObject);
@@ -344,6 +394,9 @@ public class PipeSlot {
         if (StringUtil.isBlank(vin)) {
             return;
         }//无vin码数据丢弃
+
+
+
 
 
     }
