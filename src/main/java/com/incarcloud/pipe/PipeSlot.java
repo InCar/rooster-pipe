@@ -234,22 +234,21 @@ public class PipeSlot {
                             continue;
                         }
 
-                        //对解析出的包进行预处理
-                        pretreatDataTragets(dataPackTargetList,dp.getReciveTime());
+                        //对解析出的包进行预处理后保存
+                        pretreatAndSaveDataTragets(dataPackTargetList, dp.getReciveTime());
 
 
-                        if (null != dataPackTargetList ||  dataPackTargetList.size() > 0) {
+                        if (null != dataPackTargetList || dataPackTargetList.size() > 0) {
                             for (DataPackTarget target : dataPackTargetList) {
                                 s_logger.debug(target.toString());
                                 //保存
-                                saveDataTarget(target);
+//                                saveDataTarget(target);
                                 //TODO 分发
                                 dispatchDataPack(target);
                             }
-                        }else{
+                        } else {
                             s_logger.error("dataPackTargetList  all  has no vin," + m + dp);
                         }
-
 
 
                     } catch (Exception e) {
@@ -272,20 +271,21 @@ public class PipeSlot {
 
 
     /**
-     * 对数据进行预处理（删掉无vin的数据，对采集时间字段为空或无效的数据进行处理）
+     * 对数据进行预处理并保存（删掉无vin的数据，对采集时间字段为空或无效的数据进行处理、生成rowkey最后保存）
+     *
      * @param dataPackTargetList
-     * @param reciveTime 接收时间
+     * @param reciveTime         接收时间
      */
-    private void pretreatDataTragets(List<DataPackTarget> dataPackTargetList,Date reciveTime){
+    private void pretreatAndSaveDataTragets(List<DataPackTarget> dataPackTargetList, Date reciveTime) {
 
         Iterator<DataPackTarget> iter = dataPackTargetList.iterator();
         //删掉无vin的数据
-        while (iter.hasNext()){
+        while (iter.hasNext()) {
             DataPackObject dataPackObject = iter.next().getDataPackObject();
             String vin = dataPackObject.getVin();
 
             if (StringUtil.isBlank(vin)) {//无vin码数据直接丢弃
-                s_logger.error("no vin,"+dataPackObject);
+                s_logger.error("no vin," + dataPackObject);
                 iter.remove();
 
                 /*  //TODO  不提供无vin码的支持
@@ -305,70 +305,55 @@ public class PipeSlot {
         //处理检测日期
         /**
          * 对于无采集时间或采集时间为非法时间
-         * 如果含有位置数据且位置数据带有采集时间则用位置数据的采集时间来重置所有包的采集时间，
+         * 如果这批数据（属于同一个包）含有位置数据且位置数据带有采集时间则用位置数据的采集时间来重置所有包的采集时间，
          * 否则用接收时间
          */
-
-        //选取采集时间
-        Date detectionDate = reciveTime;
-        for (DataPackTarget target : dataPackTargetList) {//获取位置时间作为采集时间
-            if(target.getDataPackObject() instanceof DataPackPosition){
-                DataPackPosition position = (DataPackPosition)target.getDataPackObject();
-                if(null != position.getPositionDate()){
-                    detectionDate = position.getPositionDate();
+        Date reciveTime0 = reciveTime;
+        for (DataPackTarget target : dataPackTargetList) {//获取位置时间覆盖接收时间
+            if (target.getDataPackObject() instanceof DataPackPosition) {
+                DataPackPosition position = (DataPackPosition) target.getDataPackObject();
+                if (DataPackObjectUtils.isLegalDetectionDate(position.getPositionDate())) {
+                    reciveTime0 = position.getPositionDate();
                     break;
                 }
 
             }
         }
 
-        for (DataPackTarget target : dataPackTargetList) {//校正非法采集时间
+        for (DataPackTarget target : dataPackTargetList) {
+            //1、校正非法采集时间
             DataPackObject packObject = target.getDataPackObject();
-            if(packObject instanceof DataPackPosition){
-                DataPackPosition position = (DataPackPosition) packObject;
-                //对于位置数据，位置时间和采集时间哪个合法用哪个
-                if(DataPackObjectUtils.isLegalDetectionDate(position.getPositionDate())){
-                    position.setDetectionDate(position.getPositionDate());
-                }else if(DataPackObjectUtils.isLegalDetectionDate(position.getDetectionDate())){
-                    position.setPositionDate(position.getDetectionDate());
-                }else{
-                    position.setDetectionDate(detectionDate);
-                    position.setPositionDate(detectionDate);
-                }
-            }else if(!DataPackObjectUtils.isLegalDetectionDate(packObject.getDetectionDate())){//非位置数据采集时间非法
-                packObject.setDetectionDate(detectionDate);
+
+
+            String timeStr = null;
+            if (DataPackObjectUtils.checkAndResetIlllegalDetectionDate(packObject, reciveTime0)) {//采集时间被接收时间重置
+                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionDate()) + "N";
+            } else {
+                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionDate());
             }
+
+            //2、保存
+
+            String vin = packObject.getVin();//获取vin码
+            String dataType = DataPackObjectUtils.getDataType(packObject);//数据类型
+            String rowKey = RowKeyUtil.makeRowKey(vin, dataType, timeStr);
+            saveDataPackObject(rowKey,packObject);
+
         }
 
     }
 
 
-
-
-
-
-
-
     /**
      * 保存数据
      *
-     * @param target
+     * @param rowKey
+     * @param dataPackObject
      */
-    protected void saveDataTarget(DataPackTarget target) {
-
-        DataPackObject dataPackObject = target.getDataPackObject();
-        //获取vin码
-        String vin = dataPackObject.getVin();
-
-        //数据采集时间
-        DateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS");
-        Date detectionDate = dataPackObject.getDetectionDate();
-        String time = dateFormat.format(detectionDate);
+    protected void saveDataPackObject(String rowKey, DataPackObject dataPackObject) {
 
         //数据类型
         String dataType = DataPackObjectUtils.getDataType(dataPackObject);
-
-        String rowKey = RowKeyUtil.makeRowKey(vin, dataType, time);
         s_logger.debug("$$$$$$$$" + dataPackObject);
 
         try {
@@ -394,9 +379,6 @@ public class PipeSlot {
         if (StringUtil.isBlank(vin)) {
             return;
         }//无vin码数据丢弃
-
-
-
 
 
     }
