@@ -327,7 +327,7 @@ public class PipeSlot {
 
             String timeStr = null;
             if (DataPackObjectUtils.checkAndResetIlllegalDetectionDate(packObject, reciveTime0)) {//采集时间被接收时间重置
-                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionDate()) + "N";
+                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionDate()) + "N";//N表示设备未上传数据采集时间，系统自动加上采集时间
             } else {
                 timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionDate());
             }
