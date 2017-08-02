@@ -9,9 +9,6 @@ import com.incarcloud.rooster.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -312,8 +309,8 @@ public class PipeSlot {
         for (DataPackTarget target : dataPackTargetList) {//获取位置时间覆盖接收时间
             if (target.getDataPackObject() instanceof DataPackPosition) {
                 DataPackPosition position = (DataPackPosition) target.getDataPackObject();
-                if (DataPackObjectUtils.isLegalDetectionDate(position.getPositionDate())) {
-                    reciveTime0 = position.getPositionDate();
+                if (DataPackObjectUtils.isLegalDetectionDate(position.getPositionTime())) {
+                    reciveTime0 = position.getPositionTime();
                     break;
                 }
 
@@ -327,9 +324,9 @@ public class PipeSlot {
 
             String timeStr = null;
             if (DataPackObjectUtils.checkAndResetIlllegalDetectionDate(packObject, reciveTime0)) {//采集时间被接收时间重置
-                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionDate()) + "N";//N表示设备未上传数据采集时间，系统自动加上采集时间
+                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionTime()) + "N";//N表示设备未上传数据采集时间，系统自动加上采集时间
             } else {
-                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionDate());
+                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionTime());
             }
 
             //2、保存
