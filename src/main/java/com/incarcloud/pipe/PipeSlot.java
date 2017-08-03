@@ -9,9 +9,7 @@ import com.incarcloud.rooster.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -276,6 +274,7 @@ public class PipeSlot {
     private void pretreatAndSaveDataTragets(List<DataPackTarget> dataPackTargetList, Date reciveTime) {
 
         Iterator<DataPackTarget> iter = dataPackTargetList.iterator();
+        Set<String> vinSet = new HashSet<>();
         //删掉无vin的数据
         while (iter.hasNext()) {
             DataPackObject dataPackObject = iter.next().getDataPackObject();
@@ -296,8 +295,14 @@ public class PipeSlot {
                 vin = dataPackObject.getProtocolName() + "-" + deviceId;
 
                 */
+            }else{
+                vinSet.add(vin);
             }
         }
+
+
+        saveVinset(vinSet);//保存vin码
+
 
         //处理检测日期
         /**
@@ -341,6 +346,19 @@ public class PipeSlot {
     }
 
 
+
+    protected void saveVinset(Set<String> vinSet){
+        for (String vin:vinSet) {
+            try {
+                _host.saveVin(vin);
+            }catch (Exception e){
+                s_logger.error("saveVin error,vin="+vin+"  "+e.getMessage());
+            }
+        }
+    }
+
+
+
     /**
      * 保存数据
      *
@@ -349,12 +367,10 @@ public class PipeSlot {
      */
     protected void saveDataPackObject(String rowKey, DataPackObject dataPackObject) {
 
-        //数据类型
-        String dataType = DataPackObjectUtils.getDataType(dataPackObject);
         s_logger.debug("$$$$$$$$" + dataPackObject);
 
         try {
-            _host.saveDataTarget(rowKey, dataPackObject, DataPackObjectUtils.getTableName(dataType));
+            _host.saveDataPackObject(rowKey, dataPackObject);
             saveToBigtableDataCount.incrementAndGet();
             s_logger.debug("save success");
         } catch (Exception e) {
