@@ -120,11 +120,19 @@ public class PipeHost {
      *
      * @param rowKey    行健
      * @param data      数据
-     * @param tableName 表名
      * @throws Exception
      */
-    public void saveDataTarget(String rowKey, DataPackObject data, String tableName) throws Exception {
-        bigTable.save(rowKey, data, tableName);
+    public void saveDataPackObject(String rowKey, DataPackObject data) throws Exception {
+        bigTable.saveDataPackObject(rowKey, data);
+    }
+
+    /**
+     * 保存vin码
+     *
+     * @param vin
+     */
+    public void saveVin(String vin) throws Exception {
+        bigTable.saveVin(vin);
     }
 
 
