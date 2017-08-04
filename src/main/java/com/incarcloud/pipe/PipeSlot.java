@@ -190,7 +190,6 @@ public class PipeSlot {
         @Override
         public void run() {
 
-
             while (isRuning) {
                 List<MQMsg> msgList = iBigMQ.batchReceive(BATCH_RECEIVE_SIZE);
 
@@ -229,15 +228,22 @@ public class PipeSlot {
                             continue;
                         }
 
-                        //对解析出的包进行预处理后保存
-                        pretreatAndSaveDataTragets(dataPackTargetList, dp.getReciveTime());
 
+                        //获取vin码,无vin码重置
+                        String vin = resetAndGetVin(dataPackTargetList);
+                        //保存vin码
+                        saveVin(vin);
 
+                        //处理采集时间,生成rowkey
+                        Map<String, DataPackObject> dataForSave = treatDetectionAndGetDataPackObject(dataPackTargetList, dp.getReciveTime());
+                        for (Map.Entry<String, DataPackObject> data : dataForSave.entrySet()) {
+                            saveDataPackObject(data.getKey(), data.getValue());
+                        }
+
+                        //分发
                         if (null != dataPackTargetList || dataPackTargetList.size() > 0) {
                             for (DataPackTarget target : dataPackTargetList) {
                                 s_logger.debug(target.toString());
-                                //保存
-//                                saveDataTarget(target);
                                 //TODO 分发
                                 dispatchDataPack(target);
                             }
@@ -266,44 +272,51 @@ public class PipeSlot {
 
 
     /**
-     * 对数据进行预处理并保存（删掉无vin的数据，对采集时间字段为空或无效的数据进行处理、生成rowkey最后保存）
+     * 获取vin码，无vin码的重置win码
      *
      * @param dataPackTargetList
-     * @param reciveTime         接收时间
+     * @return vin码
      */
-    private void pretreatAndSaveDataTragets(List<DataPackTarget> dataPackTargetList, Date reciveTime) {
-
+    private String resetAndGetVin(List<DataPackTarget> dataPackTargetList) {
         Iterator<DataPackTarget> iter = dataPackTargetList.iterator();
-        Set<String> vinSet = new HashSet<>();
-        //删掉无vin的数据
+
+        String vin = null;
+        //处理无vin的数据
         while (iter.hasNext()) {
             DataPackObject dataPackObject = iter.next().getDataPackObject();
-            String vin = dataPackObject.getVin();
+            vin = dataPackObject.getVin();
 
-            if (StringUtil.isBlank(vin)) {//无vin码数据直接丢弃
-                s_logger.error("no vin," + dataPackObject);
-                iter.remove();
+            if (StringUtil.isBlank(vin)) {
+                s_logger.debug("no vin," + dataPackObject);
 
-                /*  //TODO  不提供无vin码的支持
                 String deviceId = dataPackObject.getDeviceId();
-                if (StringUtil.isBlank(deviceId)) {//没有vin码时候,设备ID+协议代替vin码
+                if (StringUtil.isBlank(deviceId)) {//设备ID为空则丢弃
                     s_logger.error("invalid data : no  vin or deviceId,");
-                    saveToBigtableFailedDataCount.incrementAndGet();
-                    return;
+                    iter.remove();
+
+                    continue;
                 }
 
-                vin = dataPackObject.getProtocolName() + "-" + deviceId;
+                vin = deviceId + "@" + dataPackObject.getProtocolName();//没有vin码时候,设备ID+@+协议代替vin码
+                dataPackObject.setVin(vin);
 
-                */
-            }else{
-                vinSet.add(vin);
             }
+
         }
 
+        return vin;
+    }
 
-        saveVinset(vinSet);//保存vin码
 
-
+    /**
+     * 对采集时间字段为空或无效的数据进行处理、生成rowkey，返回 rowkey  ->  DataPackObject
+     *
+     * @param dataPackTargetList
+     * @param reciveTime         数据接收时间
+     * @return 待保存的数据
+     */
+    Map<String, DataPackObject> treatDetectionAndGetDataPackObject(List<DataPackTarget> dataPackTargetList, Date reciveTime) {
+        Map<String, DataPackObject> dataForSave = new HashMap<>();
         //处理检测日期
         /**
          * 对于无采集时间或采集时间为非法时间
@@ -335,28 +348,31 @@ public class PipeSlot {
             }
 
             //2、保存
-
             String vin = packObject.getVin();//获取vin码
             String dataType = DataPackObjectUtils.getDataType(packObject);//数据类型
             String rowKey = RowKeyUtil.makeRowKey(vin, dataType, timeStr);
-            saveDataPackObject(rowKey,packObject);
+
+            dataForSave.put(rowKey, packObject);
 
         }
 
+        return dataForSave;
     }
 
 
+    /**
+     * 保存vin码
+     * @param vin
+     */
+    protected void saveVin(String vin) {
 
-    protected void saveVinset(Set<String> vinSet){
-        for (String vin:vinSet) {
-            try {
-                _host.saveVin(vin);
-            }catch (Exception e){
-                s_logger.error("saveVin error,vin="+vin+"  "+e.getMessage());
-            }
+        try {
+            _host.saveVin(vin);
+        } catch (Exception e) {
+            s_logger.error("saveVin error,vin=" + vin + "  " + e.getMessage());
         }
-    }
 
+    }
 
 
     /**
