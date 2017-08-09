@@ -297,7 +297,8 @@ public class PipeSlot {
                     continue;
                 }
 
-                vin = deviceId + "@" + dataPackObject.getProtocolName();//没有vin码时候,设备ID+@+协议代替vin码
+//                vin = deviceId + "@" + dataPackObject.getProtocolName();//没有vin码时候,设备ID+@+协议代替vin码
+                vin = deviceId;//没有vin码时候,设备ID代替vin码
                 dataPackObject.setVin(vin);
 
             }
