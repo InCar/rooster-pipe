@@ -229,27 +229,8 @@ public class PipeSlot {
                         }
 
 
-                        //获取vin码,无vin码重置
-                        String vin = resetAndGetVin(dataPackTargetList);
-                        //保存vin码
-                        saveVin(vin);
-
-                        //处理采集时间,生成rowkey
-                        Map<String, DataPackObject> dataForSave = treatDetectionAndGetDataPackObject(dataPackTargetList, dp.getReciveTime());
-                        for (Map.Entry<String, DataPackObject> data : dataForSave.entrySet()) {
-                            saveDataPackObject(data.getKey(), data.getValue());
-                        }
-
-                        //分发
-                        if (null != dataPackTargetList || dataPackTargetList.size() > 0) {
-                            for (DataPackTarget target : dataPackTargetList) {
-                                s_logger.debug(target.toString());
-                                //TODO 分发
-                                dispatchDataPack(target);
-                            }
-                        } else {
-                            s_logger.error("dataPackTargetList  all  has no vin," + m + dp);
-                        }
+                        SaveDataPacks(dataPackTargetList, dp.getReciveTime());//保存数据
+                        dispatchDataPacks(dataPackTargetList);//TODO 分发
 
 
                     } catch (Exception e) {
@@ -274,7 +255,7 @@ public class PipeSlot {
     /**
      * 获取vin码，无vin码的重置win码
      *
-     * @param dataPackTargetList
+     * @param dataPackTargetList 数据对象
      * @return vin码
      */
     private String resetAndGetVin(List<DataPackTarget> dataPackTargetList) {
@@ -312,11 +293,11 @@ public class PipeSlot {
     /**
      * 对采集时间字段为空或无效的数据进行处理、生成rowkey，返回 rowkey  ->  DataPackObject
      *
-     * @param dataPackTargetList
-     * @param reciveTime         数据接收时间
+     * @param dataPackTargetList 数据列表
+     * @param reciveTime         数据接收时间（gather服务器接收时间，非设备采集时间）
      * @return 待保存的数据
      */
-    Map<String, DataPackObject> treatDetectionAndGetDataPackObject(List<DataPackTarget> dataPackTargetList, Date reciveTime) {
+    private Map<String, DataPackObject> treatDetectionAndGetDataPackObject(List<DataPackTarget> dataPackTargetList, Date reciveTime) {
         Map<String, DataPackObject> dataForSave = new HashMap<>();
         //处理检测日期
         /**
@@ -363,6 +344,7 @@ public class PipeSlot {
 
     /**
      * 保存vin码
+     *
      * @param vin
      */
     protected void saveVin(String vin) {
@@ -379,15 +361,16 @@ public class PipeSlot {
     /**
      * 保存数据
      *
-     * @param rowKey
-     * @param dataPackObject
+     * @param rowKey         bigtable主键列值
+     * @param dataPackObject 数据对象
+     * @param recieveTime    数据接收时间（gather服务器接收时间，非设备采集时间），二级索引用接收时间时间生成便于同步数据
      */
-    protected void saveDataPackObject(String rowKey, DataPackObject dataPackObject) {
+    protected void saveDataPackObject(String rowKey, DataPackObject dataPackObject, Date recieveTime) {
 
         s_logger.debug("$$$$$$$$" + dataPackObject);
 
         try {
-            _host.saveDataPackObject(rowKey, dataPackObject);
+            _host.saveDataPackObject(rowKey, dataPackObject,recieveTime);
             saveToBigtableDataCount.incrementAndGet();
             s_logger.debug("save success");
         } catch (Exception e) {
@@ -399,16 +382,44 @@ public class PipeSlot {
 
 
     /**
+     * 保存数据
+     *
+     * @param dataPackTargetList 数据列表
+     * @param recieveTime        数据接收时间（gather服务器接收时间，非设备采集时间）
+     */
+    private void SaveDataPacks(List<DataPackTarget> dataPackTargetList, Date recieveTime) {
+
+        //获取vin码,无vin码重置
+        String vin = resetAndGetVin(dataPackTargetList);
+        //保存vin码
+        saveVin(vin);
+
+
+        //处理采集时间,生成rowkey
+        Map<String, DataPackObject> dataForSave = treatDetectionAndGetDataPackObject(dataPackTargetList, recieveTime);
+        for (Map.Entry<String, DataPackObject> data : dataForSave.entrySet()) {
+            saveDataPackObject(data.getKey(), data.getValue(), recieveTime);
+        }
+
+
+    }
+
+
+    /**
      * 分发数据包
      *
-     * @param target
+     * @param dataPackTargetList
      */
-    protected void dispatchDataPack(DataPackTarget target) {//TODO 待实现
-        DataPackObject dataPackObject = target.getDataPackObject();
-        String vin = dataPackObject.getVin();
-        if (StringUtil.isBlank(vin)) {
-            return;
-        }//无vin码数据丢弃
+    private void dispatchDataPacks(List<DataPackTarget> dataPackTargetList) {//TODO 待实现
+        for (DataPackTarget target : dataPackTargetList) {
+            s_logger.debug(target.toString());
+
+            DataPackObject dataPackObject = target.getDataPackObject();
+            String vin = dataPackObject.getVin();
+            if (StringUtil.isBlank(vin)) {
+                continue;
+            }//无vin码数据丢弃
+        }
 
 
     }
