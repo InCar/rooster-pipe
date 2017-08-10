@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -118,12 +119,13 @@ public class PipeHost {
     /**
      * 保存数据
      *
-     * @param rowKey    行健
-     * @param data      数据
+     * @param rowKey      行健
+     * @param data        数据
+     * @param recieveTime 二级索引用接收时间时间生成便于同步数据
      * @throws Exception
      */
-    public void saveDataPackObject(String rowKey, DataPackObject data) throws Exception {
-        bigTable.saveDataPackObject(rowKey, data);
+    public void saveDataPackObject(String rowKey, DataPackObject data, Date recieveTime) throws Exception {
+        bigTable.saveDataPackObject(rowKey, data,recieveTime);
     }
 
     /**
@@ -147,7 +149,6 @@ public class PipeHost {
     public IBigMQ getBigMQ() {
         return bigMQ;
     }
-
 
 
     public void setBigTable(IBigTable bigTable) {
