@@ -1,4 +1,4 @@
-package com.incarcloud.pipe;
+package com.incarcloud.rooster.pipe;
 
 import com.incarcloud.rooster.datapack.*;
 import com.incarcloud.rooster.mq.IBigMQ;
@@ -67,7 +67,7 @@ public class PipeSlot {
     /**
      * 统计间隔时间（秒）
      */
-    private int period = 10;
+    private int period = 20;
 
 
     /**
@@ -127,7 +127,6 @@ public class PipeSlot {
         //间隔一定时间监控运行状况
         scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
             public void run() {
-                s_logger.info("------");
 
                 //取出的消息数量
                 int _receiveFromMqDataCount = receiveFromMqDataCount.get();

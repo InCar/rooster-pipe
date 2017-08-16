@@ -1,4 +1,4 @@
-package com.incarcloud.pipe;
+package com.incarcloud.rooster.pipe;
 
 import com.incarcloud.rooster.bigtable.IBigTable;
 import com.incarcloud.rooster.datapack.DataPackObject;
@@ -64,8 +64,6 @@ public class PipeHost {
      */
     public PipeHost(String name) {
         this.name = name;
-//        _bossGroup = new NioEventLoopGroup();
-//        _workerGroup = new NioEventLoopGroup();
     }
 
 
@@ -87,7 +85,7 @@ public class PipeHost {
         }
 
         _bRunning = true;
-        s_logger.info(name + "start success!!");
+        s_logger.info(name + " start success!!");
 
     }
 
@@ -99,8 +97,8 @@ public class PipeHost {
             slot.stop();
         }
 
-//        bigTable.close();
-//        bigMQ.close();
+        bigTable.close();
+        bigMQ.close();
 
         _bRunning = false;
     }
