@@ -26,11 +26,11 @@ public class PipeSlot {
     /**
      * 一批次接受消息的数量
      */
-    private static final int BATCH_RECEIVE_SIZE = 1;
+    private static final int BATCH_RECEIVE_SIZE = 10;
     /**
      * 工作线程数
      */
-    private static final int WORK_THREAD_COUNT = 1;
+    private static final int WORK_THREAD_COUNT = 2;
 
 
     /**
@@ -136,7 +136,7 @@ public class PipeSlot {
                 //保存到bigtable的数据条数
                 int _saveToBigtableDataCount = saveToBigtableDataCount.get();
                 int newSaveToBigtableDataCount = _saveToBigtableDataCount - lastSaveToBigtableDataCount;
-                lastSaveToBigtableFailedDataCount = _saveToBigtableDataCount;
+                lastSaveToBigtableDataCount = _saveToBigtableDataCount;
 
                 //保存到bigtable失败的数据条数
                 int _saveToBigtableFailedDataCount = saveToBigtableFailedDataCount.get();
@@ -202,7 +202,7 @@ public class PipeSlot {
 
                     continue;
                 } else {//监控数据
-                    receiveFromMqDataCount.incrementAndGet();
+                    receiveFromMqDataCount.getAndAdd(msgList.size());
                 }
 
 
