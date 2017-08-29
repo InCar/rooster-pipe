@@ -228,7 +228,7 @@ public class PipeSlot {
                         }
 
 
-                        saveDataPacks(dataPackTargetList, dp.getReciveTime());//保存数据
+                        saveDataPacks(dataPackTargetList, dp.getReceiveTime());//保存数据
                         dispatchDataPacks(dataPackTargetList);//TODO 分发
 
 
@@ -281,7 +281,7 @@ public class PipeSlot {
                 vin = deviceId;//没有vin码时候,设备ID代替vin码
 //                dataPackObject.setVin(vin);//不再重置vin码
 
-            }else{
+            } else {
                 break;
             }
 
@@ -292,14 +292,16 @@ public class PipeSlot {
 
 
     /**
-     * 对采集时间字段为空或无效的数据进行处理、生成rowkey，返回 rowkey  ->  DataPackObject
+     * 1.设置数据接收时间
+     * 2.对采集时间字段为空或无效的数据进行处理、
+     * 3.生成rowkey，返回 rowkey  ->  DataPackObject
      *
      * @param dataPackTargetList 数据列表(同一个DataPack解出的)
      * @param reciveTime         数据接收时间（gather服务器接收时间，非设备采集时间）
-     *                           @param vin vin码
+     * @param vin                vin码
      * @return 待保存的数据
      */
-    private Map<String, DataPackObject> treatDetectionAndGetDataPackObject(List<DataPackTarget> dataPackTargetList, Date reciveTime,String vin) {
+    private Map<String, DataPackObject> treatDetectionAndGetDataPackObject(List<DataPackTarget> dataPackTargetList, Date reciveTime, String vin) {
         Map<String, DataPackObject> dataForSave = new HashMap<>();
         //处理检测日期
         /**
@@ -319,9 +321,11 @@ public class PipeSlot {
             }
         }
 
+
         for (DataPackTarget target : dataPackTargetList) {
             //1、校正非法采集时间
             DataPackObject packObject = target.getDataPackObject();
+            packObject.setReceiveTime(reciveTime);
 
 
             String timeStr = null;
@@ -338,6 +342,7 @@ public class PipeSlot {
             dataForSave.put(rowKey, packObject);
 
         }
+
 
         return dataForSave;
     }
@@ -371,12 +376,12 @@ public class PipeSlot {
 //        s_logger.debug("$$$$$$$$"+rowKey+"," + dataPackObject);
 
         try {
-            _host.saveDataPackObject(rowKey, dataPackObject,recieveTime);
+            _host.saveDataPackObject(rowKey, dataPackObject, recieveTime);
             saveToBigtableDataCount.incrementAndGet();
-            s_logger.debug("save success:"+rowKey);
+            s_logger.debug("save success:" + rowKey);
         } catch (Exception e) {
             e.printStackTrace();
-            s_logger.error("save failed   "+rowKey+"\n" + e.getMessage());
+            s_logger.error("save failed   " + rowKey + "\n" + e.getMessage());
             saveToBigtableFailedDataCount.incrementAndGet();
         }
     }
@@ -397,7 +402,7 @@ public class PipeSlot {
 
 
         //处理采集时间,生成rowkey
-        Map<String, DataPackObject> dataForSave = treatDetectionAndGetDataPackObject(dataPackTargetList, recieveTime,vin);
+        Map<String, DataPackObject> dataForSave = treatDetectionAndGetDataPackObject(dataPackTargetList, recieveTime, vin);
         for (Map.Entry<String, DataPackObject> data : dataForSave.entrySet()) {
             saveDataPackObject(data.getKey(), data.getValue(), recieveTime);
         }
