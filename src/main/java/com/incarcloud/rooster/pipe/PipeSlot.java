@@ -264,24 +264,21 @@ public class PipeSlot {
         //处理无vin的数据
         while (iter.hasNext()) {
             DataPackObject dataPackObject = iter.next().getDataPackObject();
-            vin = dataPackObject.getVin();
+            String deviceId = dataPackObject.getDeviceId();
+            String vin0 = dataPackObject.getVin();
+            if(StringUtil.isBlank(vin0)  && StringUtil.isBlank(deviceId)){
+                s_logger.error("invalid data : no  vin or deviceId,");
+                iter.remove();
+                continue;
+            }
 
-            if (StringUtil.isBlank(vin)) {
+
+            if (StringUtil.isBlank(vin0)) {
                 s_logger.debug("no vin," + dataPackObject);
-
-                String deviceId = dataPackObject.getDeviceId();
-                if (StringUtil.isBlank(deviceId)) {//设备ID为空则丢弃
-                    s_logger.error("invalid data : no  vin or deviceId,");
-                    iter.remove();
-
-                    continue;
-                }
-
-//                vin = deviceId + "@" + dataPackObject.getProtocolName();//没有vin码时候,设备ID+@+协议代替vin码
                 vin = deviceId;//没有vin码时候,设备ID代替vin码
 //                dataPackObject.setVin(vin);//不再重置vin码
-
             } else {
+                vin = vin0;
                 break;
             }
 
