@@ -39,9 +39,21 @@ public class PipeHost {
     private ArrayList<PipeSlot> _slots = new ArrayList<>();
 
     /**
-     * 操作消息队列接口
+     * 接收数据的mq
      */
-    private IBigMQ bigMQ;
+    private IBigMQ receiveDataMQ;
+    
+    /**
+     * 推送数据到国标的mq
+     */
+    private IBigMQ gbPushMQ;
+    
+    /**
+     * 推送数据到地标的mq
+     */
+    private IBigMQ dbPushMQ;
+    
+
 
     /**
      * bigtable的操作接口
@@ -98,7 +110,7 @@ public class PipeHost {
         }
 
         bigTable.close();
-        bigMQ.close();
+        receiveDataMQ.close();
 
         _bRunning = false;
     }
@@ -111,7 +123,7 @@ public class PipeHost {
      * @return
      */
     public List<MQMsg> batchReceive(int size) {
-        return bigMQ.batchReceive(size);
+        return receiveDataMQ.batchReceive(size);
     }
 
     /**
@@ -140,12 +152,12 @@ public class PipeHost {
         _slots.add(slot);
     }
 
-    public void setBigMQ(IBigMQ bigMQ) {
-        this.bigMQ = bigMQ;
+    public void setReceiveDataMQ(IBigMQ bigMQ) {
+        this.receiveDataMQ = bigMQ;
     }
 
-    public IBigMQ getBigMQ() {
-        return bigMQ;
+    public IBigMQ getReceiveDataMQ() {
+        return receiveDataMQ;
     }
 
 
@@ -156,4 +168,28 @@ public class PipeHost {
     public String getName() {
         return name;
     }
+
+
+	
+	public IBigMQ getGbPushMQ() {
+		return gbPushMQ;
+	}
+
+
+	public void setGbPushMQ(IBigMQ gbPushMQ) {
+		this.gbPushMQ = gbPushMQ;
+	}
+
+
+	public IBigMQ getDbPushMQ() {
+		return dbPushMQ;
+	}
+	
+
+
+	public void setDbPushMQ(IBigMQ dbPushMQ) {
+		this.dbPushMQ = dbPushMQ;
+	}
+	
+	
 }

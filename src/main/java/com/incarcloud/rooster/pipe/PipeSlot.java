@@ -9,6 +9,7 @@ import com.incarcloud.rooster.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.UnsupportedEncodingException;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,9 +29,18 @@ public class PipeSlot {
      */
     private static final int BATCH_RECEIVE_SIZE = 10;
     /**
-     * 工作线程数
+     * 接收数据线程数
      */
-    private static final int WORK_THREAD_COUNT = 2;
+    private static final int RECIVE_DATA_THREAD_COUNT = 2;
+    
+    
+//    private static final BlockingDeque<E>
+    
+    
+    
+    
+    
+    
 
 
     /**
@@ -118,8 +128,10 @@ public class PipeSlot {
         isRuning = true;
 
         //开个线程防止阻塞
-        for (int i = 0; i < WORK_THREAD_COUNT; i++) {
-            Thread workThread = new Thread(workThreadGroup, new PipeSlotProccess(name + "-PipeSlotProccess-" + i, _host.getBigMQ()));
+        for (int i = 0; i < RECIVE_DATA_THREAD_COUNT; i++) {
+            Thread workThread = new Thread(workThreadGroup, 
+            		new PipeSlotReceiveDateProccess(name + "-PipeSlotProccess-" + i, 
+            				_host.getReceiveDataMQ()));
             workThread.start();
 
         }
@@ -168,16 +180,16 @@ public class PipeSlot {
     /**
      * slot主要工作线程
      */
-    private class PipeSlotProccess implements Runnable {
+    private class PipeSlotReceiveDateProccess implements Runnable {
         /**
          * 线程名称
          */
         private String name;
-        private IBigMQ iBigMQ;
+        private IBigMQ receiveDataMQ;
 
-        public PipeSlotProccess(String name, IBigMQ iBigMQ) {
+        public PipeSlotReceiveDateProccess(String name, IBigMQ receiveDataMQ) {
             this.name = name;
-            this.iBigMQ = iBigMQ;
+            this.receiveDataMQ = receiveDataMQ;
         }
 
 
@@ -190,7 +202,7 @@ public class PipeSlot {
         public void run() {
 
             while (isRuning) {
-                List<MQMsg> msgList = iBigMQ.batchReceive(BATCH_RECEIVE_SIZE);
+                List<MQMsg> msgList = receiveDataMQ.batchReceive(BATCH_RECEIVE_SIZE);
 
 
                 if (null == msgList || 0 == msgList.size()) {
@@ -222,14 +234,19 @@ public class PipeSlot {
                         //第二步解析
                         List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);//同一个DataPack解出的数据列表
 
+
                         if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
                             s_logger.info("extractBody  null dataPackTargetList," + m + dp);
                             continue;
                         }
 
+                        for (DataPackTarget t:
+                                dataPackTargetList) {
+                            System.out.println("%%%%%%%%%%%"+t.toString());
+                        }
 
                         saveDataPacks(dataPackTargetList, dp.getReceiveTime());//保存数据
-                        dispatchDataPacks(dataPackTargetList);//TODO 分发
+                        dispatchDataPacks(dp,dataPackTargetList);//TODO 分发
 
 
                     } catch (Exception e) {
@@ -246,7 +263,7 @@ public class PipeSlot {
             }
 
             //停止后释放连接
-            iBigMQ.releaseCurrentConn();
+            receiveDataMQ.releaseCurrentConn();
         }
     }
 
@@ -370,7 +387,7 @@ public class PipeSlot {
      */
     protected void saveDataPackObject(String rowKey, DataPackObject dataPackObject, Date recieveTime) {
 
-//        s_logger.debug("$$$$$$$$"+rowKey+"," + dataPackObject);
+        System.out.println("$$$$$$$$"+rowKey+"," + dataPackObject);
 
         try {
             _host.saveDataPackObject(rowKey, dataPackObject, recieveTime);
@@ -404,17 +421,17 @@ public class PipeSlot {
             saveDataPackObject(data.getKey(), data.getValue(), recieveTime);
         }
 
-
     }
 
 
     /**
      * 分发数据包
      *
+     * @param dp 原始数据包
      * @param dataPackTargetList 数据列表(同一个DataPack解出的)
      */
-    private void dispatchDataPacks(List<DataPackTarget> dataPackTargetList) {//TODO 待实现
-        for (DataPackTarget target : dataPackTargetList) {
+    private void dispatchDataPacks(DataPack dp,List<DataPackTarget> dataPackTargetList) {//TODO 待实现
+    	/*for (DataPackTarget target : dataPackTargetList) {
             s_logger.debug(target.toString());
 
             DataPackObject dataPackObject = target.getDataPackObject();
@@ -422,7 +439,23 @@ public class PipeSlot {
             if (StringUtil.isBlank(vin)) {
                 continue;
             }//无vin码数据丢弃
-        }
+        }*/
+    	
+    	
+    	if(null != _host.getGbPushMQ()){//分发到国标
+    		IBigMQ gbPushMQ = _host.getGbPushMQ();
+    		
+    		try {
+				gbPushMQ.post(new MQMsg(dp.getMark(), dp.serializeToBytes()));
+			} catch (UnsupportedEncodingException e) {
+				s_logger.debug("Unsupported Encoding   UTF-8");
+			}
+    	}
+    	
+    	
+    	/*if(null != _host.getDbPushMQ()){//分发到地标
+    		
+    	}*/
 
 
     }
