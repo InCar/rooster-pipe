@@ -242,7 +242,7 @@ public class PipeSlot {
 
                         for (DataPackTarget t:
                                 dataPackTargetList) {
-                            System.out.println("%%%%%%%%%%%"+t.toString());
+                        	s_logger.info("%%%%%%%%%%%"+t.toString());
                         }
 
                         saveDataPacks(dataPackTargetList, dp.getReceiveTime());//保存数据
