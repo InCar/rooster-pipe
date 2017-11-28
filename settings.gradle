@@ -1,1 +1,1 @@
-include "rooster-shared"
+rootProject.name = 'rooster-pipe'
