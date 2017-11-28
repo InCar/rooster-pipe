@@ -27,7 +27,7 @@ repositories {
 }
 
 dependencies {
-    compile("com.incarcloud:rooster-shared-all:2.0")
+    compile("com.incarcloud:rooster-shared-all:2.1-SNAPSHOT")
 
     compile("org.slf4j:slf4j-api:1.7.+")
 
