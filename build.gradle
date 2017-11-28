@@ -1,25 +1,36 @@
 group 'com.incarcloud'
-version '2.0'
+version '2.1-SNAPSHOT'
 
 apply plugin: 'java'
+apply plugin: 'maven'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
+ext {
+    MAVEN_REPOS_URL_PUTLIC = 'http://114.55.224.31:8081/repository/maven-public/'
+    MAVEN_REPOS_URL_RELEASE = 'http://114.55.224.31:8081/repository/maven-releases/'
+    MAVEN_REPOS_URL_SNAPSHOTS = 'http://114.55.224.31:8081/repository/maven-snapshots/'
+    MAVEN_REPOS_AUTH_USERNAME = 'bbfan'
+    MAVEN_REPOS_AUTH_PASSWORD = 'bbfan'
+}
+
 repositories {
-    if (project.hasProperty("maven")) {
-        if (maven.equals("maven.aliyun.com"))
-            maven { url 'http://maven.aliyun.com/nexus/content/groups/public/' }
-        else
-            mavenCentral()
-    } else {
-        mavenCentral()
+    maven { url 'http://maven.aliyun.com/nexus/content/groups/public/' }
+    maven {
+        url "${MAVEN_REPOS_URL_PUTLIC}"
+        credentials {
+            username = "${MAVEN_REPOS_AUTH_USERNAME}"
+            password = "${MAVEN_REPOS_AUTH_PASSWORD}"
+        }
     }
 }
 
 dependencies {
+    compile("com.incarcloud:rooster-shared-all:2.0")
+
     compile("org.slf4j:slf4j-api:1.7.+")
-    compile project("rooster-shared")
+
     testCompile("junit:junit:4.+")
     testRuntime("org.apache.logging.log4j:log4j-slf4j-impl:2.8.+")
     testRuntime("org.apache.logging.log4j:log4j-core:2.8.+")
@@ -39,6 +50,23 @@ test{
     testLogging {
         events "passed", "skipped", "failed"
         showStandardStreams = true
+    }
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: "${MAVEN_REPOS_URL_RELEASE}") {
+                authentication(userName: "${MAVEN_REPOS_AUTH_USERNAME}", password: "${MAVEN_REPOS_AUTH_PASSWORD}")
+            }
+            snapshotRepository(url: "${MAVEN_REPOS_URL_SNAPSHOTS}") {
+                authentication(userName: "${MAVEN_REPOS_AUTH_USERNAME}", password: "${MAVEN_REPOS_AUTH_PASSWORD}")
+            }
+            pom.project{
+                name = '$project.name'
+            }
+
+        }
     }
 }
 
