@@ -1,5 +1,5 @@
 group 'com.incarcloud'
-version '2.1-SNAPSHOT'
+version '2.1.4-SNAPSHOT'
 
 apply plugin: 'java'
 apply plugin: 'maven'
@@ -27,11 +27,13 @@ repositories {
 }
 
 dependencies {
-    compile("com.incarcloud:rooster-shared-all:2.1-SNAPSHOT")
-
+    compile("com.incarcloud:rooster-shared-all:2.1.4-SNAPSHOT")
+    compile("com.alibaba:fastjson:1.2.24")
     compile("org.slf4j:slf4j-api:1.7.+")
-
-    testCompile("junit:junit:4.+")
+    compile("org.apache.commons:commons-lang3:3.+")
+    compile("com.fasterxml.jackson:jackson-base:2.9.+")
+    compile("redis.clients:jedis:2.9.+")
+    compile("junit:junit:4.+")
     testRuntime("org.apache.logging.log4j:log4j-slf4j-impl:2.8.+")
     testRuntime("org.apache.logging.log4j:log4j-core:2.8.+")
 }

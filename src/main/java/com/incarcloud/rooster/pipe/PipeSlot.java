@@ -1,11 +1,11 @@
 package com.incarcloud.rooster.pipe;
 
+import com.alibaba.fastjson.JSON;
+import com.incarcloud.rooster.cache.ICacheManager;
 import com.incarcloud.rooster.datapack.*;
 import com.incarcloud.rooster.mq.IBigMQ;
 import com.incarcloud.rooster.mq.MQMsg;
-import com.incarcloud.rooster.util.DataPackObjectUtils;
-import com.incarcloud.rooster.util.RowKeyUtil;
-import com.incarcloud.rooster.util.StringUtil;
+import com.incarcloud.rooster.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,6 +89,9 @@ public class PipeSlot {
 	 */
 	private PipeHost _host;
 
+	public PipeSlot(){
+
+	}
 	/**
 	 * @param host
 	 *            采集槽所在主机
@@ -342,6 +345,10 @@ public class PipeSlot {
 
 			dataForSave.put(rowKey, packObject);
 
+			// 3、监控车辆状态信息
+			operationRedis(packObject);
+
+
 		}
 
 		return dataForSave;
@@ -446,6 +453,54 @@ public class PipeSlot {
 		 * }
 		 */
 
+	}
+
+	private ICacheManager cacheManager ;
+
+	public void setCacheManager(ICacheManager cacheManager) {
+		this.cacheManager = cacheManager;
+	}
+
+	/**
+	 * 数据处理存入Redis
+	 * @param packObject
+	 */
+	public void operationRedis(DataPackObject packObject){
+
+		String deviceCode = packObject.getDeviceId() ;
+		String vin = packObject.getVin() ;
+		if (null == vin){
+			//TODO 根据设备号获取VIN码 <Redis中获取>
+			vin = cacheManager.getValue(deviceCode) ;
+		}
+		int type = Constant.HeartbeatType.NORMAL ;
+		Date time = packObject.getDetectionTime() ;
+		String timeStr = DateUtil.getTimeStr(time) ;
+		if (packObject instanceof DataPackLogInOut){
+			//VIN与设备号建立关系 （永久）
+			cacheManager.save(Constant.RedisNamespace.REDIS_NS_VEHICLE_VIN+vin,deviceCode);
+			//设备号与VIN码建立关系 （永久）
+			cacheManager.save(Constant.RedisNamespace.REDIS_NS_DEVICE_CODE+deviceCode,vin);
+			//离线车辆关系 （永久） 在线与离线互斥
+			DataPackLogInOut dataPackLogInOut = (DataPackLogInOut) packObject;
+			Integer loginType = dataPackLogInOut.getLoginType() ;
+			if (null != loginType){
+				type = loginType == 0 ? Constant.HeartbeatType.LOGIN : Constant.HeartbeatType.LOGOUT ;
+				if (type == Constant.HeartbeatType.LOGIN){
+					//在线车辆关系 （30S）
+					cacheManager.save(Constant.RedisNamespace.REDIS_NS_DEVICE_ONLINE+vin,timeStr,Constant.TIME_OUT);
+					cacheManager.delete(Constant.RedisNamespace.REDIS_NS_DEVICE_OFFLINE+vin);
+				}else if (type == Constant.HeartbeatType.LOGOUT){
+					//车辆离线
+					cacheManager.save(Constant.RedisNamespace.REDIS_NS_DEVICE_OFFLINE+vin,timeStr);
+				}
+			}
+		}
+		Map<String,Object> map = new HashMap<>();
+		map.put("type",type) ;
+		map.put("time", timeStr) ;
+		//连线过的车辆关系 （永久）-- 所有数据均为心跳数据
+		cacheManager.save(Constant.RedisNamespace.REDIS_NS_DEVICE_HEARTBEAT+vin, JSON.toJSON(map).toString());
 	}
 
 }
