@@ -89,9 +89,6 @@ public class PipeSlot {
 	 */
 	private PipeHost _host;
 
-	public PipeSlot(){
-
-	}
 	/**
 	 * @param host
 	 *            采集槽所在主机
@@ -465,7 +462,7 @@ public class PipeSlot {
 	 * 数据处理存入Redis
 	 * @param packObject
 	 */
-	public void operationRedis(DataPackObject packObject){
+	private void operationRedis(DataPackObject packObject){
 
 		String deviceCode = packObject.getDeviceId() ;
 		String vin = packObject.getVin() ;
