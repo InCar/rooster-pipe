@@ -214,7 +214,7 @@ public class PipeSlot {
 
                         IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
                         if (null == dataParser) {
-                            s_logger.error("Not support {}", dp.getProtocol());
+                            s_logger.error("Not support {}!!!", dp.getProtocol());
                             continue;
                         }
 
