@@ -123,7 +123,7 @@ public class PipeSlot {
      * 启动
      */
     public void start() {
-        s_logger.info(name + " start  receive  message !!");
+        s_logger.info(name + " start receive message!!!");
         isRunning = true;
 
         // 开个线程防止阻塞
@@ -152,11 +152,11 @@ public class PipeSlot {
                 lastSaveToBigtableFailedDataCount = _saveToBigtableFailedDataCount;
 
                 // 记录日志
-                s_logger.info("{} in last  {} s, total {} msg receive  from mq, total {} saved to bigtable, total {} failed save to bigtable!!!", PipeSlot.this.name, period, newReceiveFromMqDataCount, newSaveToBigtableDataCount, newSaveToBigtableFailedDataCount);
+                s_logger.info("{} in last {} s, total {} msg receive from mq, total {} saved to bigtable, total {} failed save to bigtable!!!", PipeSlot.this.name, period, newReceiveFromMqDataCount, newSaveToBigtableDataCount, newSaveToBigtableFailedDataCount);
             }
         }, period, period, TimeUnit.SECONDS);
 
-        s_logger.info(name + "  start success!!!");
+        s_logger.info(name + " start success!!!");
     }
 
     /**
