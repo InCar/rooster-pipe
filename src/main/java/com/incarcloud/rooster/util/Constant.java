@@ -1,11 +1,14 @@
 package com.incarcloud.rooster.util;
 
 /**
- * Created by Kong on 2017/12/18.
+ * 常量类
+ *
+ * @author Kong, Created on 2017/12/18.
+ * @since 2.1.4-SNAPSHOT
  */
 public interface Constant {
 
-    Integer TIME_OUT = 30 ;
+    Integer TIME_OUT = 30;
 
     /**
      * 心跳类型：1-登录, 2-登出, 3-心跳
@@ -27,6 +30,21 @@ public interface Constant {
          */
         int NORMAL = 3;
 
+    }
+
+    /**
+     * 数据包MAP键名
+     */
+    interface HeartbeatDataMapKey {
+        /**
+         * 类型
+         */
+        String TYPE = "type";
+        
+        /**
+         * 时间
+         */
+        String TIME = "time";
     }
 
     /**

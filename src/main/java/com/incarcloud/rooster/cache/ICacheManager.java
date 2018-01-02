@@ -1,36 +1,50 @@
 package com.incarcloud.rooster.cache;
 
 /**
- * Created by Kong on 2017/12/20.
+ * 缓存管理器
+ *
+ * @author Kong, Created on 2017/12/20.
+ * @since 2.1.4-SNAPSHOT
  */
 public interface ICacheManager {
 
     /**
-     * 保存缓存数据
-     * @param key 键
-     * @param value 值
+     * 设置缓存数据
+     *
+     * @param key   键名
+     * @param value 键值
      */
-    void save(String key,String value) ;
+    void set(String key, String value);
 
     /**
-     * 保存缓存数据
-     * @param key 键
-     * @param value 值
-     * @param timeOut 超时时间
+     * 设置缓存数据
+     *
+     * @param key   键名
+     * @param value 键值
+     * @param ttl   超时时间，单位：秒
      */
-    void save(String key,String value,int timeOut) ;
+    void set(String key, String value, int ttl);
 
     /**
-     * 获取缓存值
-     * @param key 键
+     * 设置超时时间
+     *
+     * @param key 键名
+     * @param ttl 超时时间，单位：秒
+     */
+    void expire(String key, int ttl);
+
+    /**
+     * 根据key获取数据
+     *
+     * @param key 键名
      * @return
      */
-    String getValue(String key) ;
+    String get(String key);
 
     /**
-     * 通过键值删除缓存
-     * @param key
+     * 根据key移除数据
+     *
+     * @param key 键名
      */
-    void delete(String key) ;
-
+    void delete(String key);
 }
