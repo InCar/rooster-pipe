@@ -19,19 +19,21 @@ import java.util.List;
  * @date 2017年6月2日 下午3:55:17
  */
 public class PipeHost {
+
+    /**
+     * Logger
+     */
     private static Logger s_logger = LoggerFactory.getLogger(PipeHost.class);
 
     static {
-        //加载com.incarcloud.rooster.datapack包下的所有类，使得解析器注册到DataParserManager
+        // 加载com.incarcloud.rooster.datapack包下的所有类，使得解析器注册到DataParserManager
         DataParserManager.loadClassOfSamePackage();
     }
-
 
     /**
      * 主机名
      */
     private String name;
-
 
     /**
      * 采集槽列表
@@ -42,53 +44,51 @@ public class PipeHost {
      * 接收数据的mq
      */
     private IBigMQ receiveDataMQ;
-    
+
     /**
      * 推送数据到国标的mq
      */
     private IBigMQ gbPushMQ;
-    
+
     /**
      * 推送数据到地标的mq
      */
     private IBigMQ dbPushMQ;
-    
-
 
     /**
      * bigtable的操作接口
      */
     private IBigTable bigTable;
 
-
     /**
      * 是否已启动
      */
     private Boolean _bRunning = false;
 
+    /**
+     * 默认构造函数
+     */
     public PipeHost() {
         this("pipehost" + Calendar.getInstance().getTimeInMillis());
     }
 
-
     /**
+     * 构造函数
+     *
      * @param name 主机名
      */
     public PipeHost(String name) {
         this.name = name;
     }
 
-
     /**
      * 启动
      */
     public void start() {
-        if (_bRunning)
-            return;
+        if (_bRunning) return;
 
         if (0 == _slots.size()) {
             s_logger.error("no slot!!!");
-
             System.exit(-1);
         }
 
@@ -97,8 +97,7 @@ public class PipeHost {
         }
 
         _bRunning = true;
-        s_logger.info(name + " start success!!");
-
+        s_logger.info("{} start success!!!", name);
     }
 
     /**
@@ -115,7 +114,6 @@ public class PipeHost {
         _bRunning = false;
     }
 
-
     /**
      * 批量接收消息
      *
@@ -131,11 +129,11 @@ public class PipeHost {
      *
      * @param rowKey      行健
      * @param data        数据
-     * @param recieveTime 二级索引用接收时间时间生成便于同步数据
+     * @param receiveTime 二级索引用接收时间时间生成便于同步数据
      * @throws Exception
      */
-    public void saveDataPackObject(String rowKey, DataPackObject data, Date recieveTime) throws Exception {
-        bigTable.saveDataPackObject(rowKey, data,recieveTime);
+    public void saveDataPackObject(String rowKey, DataPackObject data, Date receiveTime) throws Exception {
+        bigTable.saveDataPackObject(rowKey, data, receiveTime);
     }
 
     /**
@@ -147,49 +145,84 @@ public class PipeHost {
         bigTable.saveVin(vin);
     }
 
-
+    /**
+     * 添加slot
+     *
+     * @param slot slot对象
+     */
     public void addSlot(PipeSlot slot) {
         _slots.add(slot);
     }
 
+    /**
+     * 设置接收数据MQ
+     *
+     * @param bigMQ 接收数据MQ
+     */
     public void setReceiveDataMQ(IBigMQ bigMQ) {
         this.receiveDataMQ = bigMQ;
     }
 
+    /**
+     * 获得接收数据MQ
+     *
+     * @return
+     */
     public IBigMQ getReceiveDataMQ() {
         return receiveDataMQ;
     }
 
-
+    /**
+     * 设置bigTable对象
+     *
+     * @param bigTable bigTable对象
+     */
     public void setBigTable(IBigTable bigTable) {
         this.bigTable = bigTable;
     }
 
+    /**
+     * 获得主机名
+     *
+     * @return
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * 获得国标MQ
+     *
+     * @return
+     */
+    public IBigMQ getGbPushMQ() {
+        return gbPushMQ;
+    }
 
-	
-	public IBigMQ getGbPushMQ() {
-		return gbPushMQ;
-	}
+    /**
+     * 设置国标MQ
+     *
+     * @param gbPushMQ 国标MQ
+     */
+    public void setGbPushMQ(IBigMQ gbPushMQ) {
+        this.gbPushMQ = gbPushMQ;
+    }
 
+    /**
+     * 获得地标MQ
+     *
+     * @return
+     */
+    public IBigMQ getDbPushMQ() {
+        return dbPushMQ;
+    }
 
-	public void setGbPushMQ(IBigMQ gbPushMQ) {
-		this.gbPushMQ = gbPushMQ;
-	}
-
-
-	public IBigMQ getDbPushMQ() {
-		return dbPushMQ;
-	}
-	
-
-
-	public void setDbPushMQ(IBigMQ dbPushMQ) {
-		this.dbPushMQ = dbPushMQ;
-	}
-	
-	
+    /**
+     * 设置地标MQ
+     *
+     * @param dbPushMQ 地标MQ
+     */
+    public void setDbPushMQ(IBigMQ dbPushMQ) {
+        this.dbPushMQ = dbPushMQ;
+    }
 }
