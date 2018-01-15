@@ -5,10 +5,7 @@ import com.incarcloud.rooster.cache.ICacheManager;
 import com.incarcloud.rooster.datapack.*;
 import com.incarcloud.rooster.mq.IBigMQ;
 import com.incarcloud.rooster.mq.MQMsg;
-import com.incarcloud.rooster.util.Constant;
-import com.incarcloud.rooster.util.DataPackObjectUtils;
-import com.incarcloud.rooster.util.RowKeyUtil;
-import com.incarcloud.rooster.util.StringUtil;
+import com.incarcloud.rooster.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -192,7 +189,7 @@ public class PipeSlot {
         public void run() {
 
             while (isRunning) {
-                List<MQMsg> msgList = receiveDataMQ.batchReceive(BATCH_RECEIVE_SIZE);
+                List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(),BATCH_RECEIVE_SIZE);
 
                 if (null == msgList || 0 == msgList.size()) {
                     s_logger.debug("{} receive no  message !!!", name);
@@ -205,10 +202,12 @@ public class PipeSlot {
                     receiveFromMqDataCount.getAndAdd(msgList.size());
                 }
 
-                for (MQMsg m : msgList) {
+                for (byte[] b : msgList) {
                     DataPack dp = null;
 
                     try {
+                        String json = new String(b) ;
+                        MQMsg m = GsonFactory.newInstance().createGson().fromJson(json,MQMsg.class) ;
                         dp = DataPack.deserializeFromBytes(m.getData());
                         s_logger.debug("DataPack: {}", dp.toString());
 
@@ -247,7 +246,7 @@ public class PipeSlot {
 
                     } catch (Exception e) {
                         e.printStackTrace();
-                        s_logger.error("deal with msg error, {}, \n{}", m, e.getMessage());
+                        s_logger.error("deal with msg error, {}, \n{}", new String(b), e.getMessage());
                     } finally {
                         if (null != dp) {
                             dp.freeBuf();
@@ -257,7 +256,7 @@ public class PipeSlot {
             }
 
             // 停止后释放连接
-            receiveDataMQ.releaseCurrentConn();
+            receiveDataMQ.releaseCurrentConn(_host.getReceiveDataTopic());
         }
     }
 
@@ -418,7 +417,9 @@ public class PipeSlot {
             IBigMQ gbPushMQ = _host.getGbPushMQ();
 
             try {
-                gbPushMQ.post(new MQMsg(dp.getMark(), dp.serializeToBytes()));
+                MQMsg mqMsg = new MQMsg(dp.getMark(), dp.serializeToBytes()) ;
+                byte[] bytes = GsonFactory.newInstance().createGson().toJson(mqMsg).getBytes() ;
+                gbPushMQ.post(_host.getGbPushTopic(),bytes);
             } catch (UnsupportedEncodingException e) {
                 s_logger.debug("Unsupported encoding utf-8.");
             }

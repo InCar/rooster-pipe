@@ -56,6 +56,21 @@ public class PipeHost {
     private IBigMQ dbPushMQ;
 
     /**
+     * 接收数据的Topic
+     */
+    private String receiveDataTopic ;
+
+    /**
+     * 推送数据到国标的Topic
+     */
+    private String gbPushTopic ;
+
+    /**
+     * 推送数据到地标的Topic
+     */
+    private String dbPushTopic ;
+
+    /**
      * bigtable的操作接口
      */
     private IBigTable bigTable;
@@ -120,8 +135,8 @@ public class PipeHost {
      * @param size 消息数量
      * @return
      */
-    public List<MQMsg> batchReceive(int size) {
-        return receiveDataMQ.batchReceive(size);
+    public List<byte[]> batchReceive(int size) {
+        return receiveDataMQ.batchReceive(receiveDataTopic,size);
     }
 
     /**
@@ -224,5 +239,29 @@ public class PipeHost {
      */
     public void setDbPushMQ(IBigMQ dbPushMQ) {
         this.dbPushMQ = dbPushMQ;
+    }
+
+    public String getReceiveDataTopic() {
+        return receiveDataTopic;
+    }
+
+    public void setReceiveDataTopic(String receiveDataTopic) {
+        this.receiveDataTopic = receiveDataTopic;
+    }
+
+    public String getGbPushTopic() {
+        return gbPushTopic;
+    }
+
+    public void setGbPushTopic(String gbPushTopic) {
+        this.gbPushTopic = gbPushTopic;
+    }
+
+    public String getDbPushTopic() {
+        return dbPushTopic;
+    }
+
+    public void setDbPushTopic(String dbPushTopic) {
+        this.dbPushTopic = dbPushTopic;
     }
 }
