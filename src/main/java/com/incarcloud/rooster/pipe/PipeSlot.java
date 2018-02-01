@@ -189,7 +189,7 @@ public class PipeSlot {
         public void run() {
 
             while (isRunning) {
-                List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(),BATCH_RECEIVE_SIZE);
+                List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), BATCH_RECEIVE_SIZE);
 
                 if (null == msgList || 0 == msgList.size()) {
                     s_logger.debug("{} receive no  message !!!", name);
@@ -206,8 +206,8 @@ public class PipeSlot {
                     DataPack dp = null;
 
                     try {
-                        String json = new String(b) ;
-                        MQMsg m = GsonFactory.newInstance().createGson().fromJson(json,MQMsg.class) ;
+                        String json = new String(b);
+                        MQMsg m = GsonFactory.newInstance().createGson().fromJson(json, MQMsg.class);
                         dp = DataPack.deserializeFromBytes(m.getData());
                         s_logger.debug("DataPack: {}", dp.toString());
 
@@ -417,9 +417,9 @@ public class PipeSlot {
             IBigMQ gbPushMQ = _host.getGbPushMQ();
 
             try {
-                MQMsg mqMsg = new MQMsg(dp.getMark(), dp.serializeToBytes()) ;
-                byte[] bytes = GsonFactory.newInstance().createGson().toJson(mqMsg).getBytes() ;
-                gbPushMQ.post(_host.getGbPushTopic(),bytes);
+                MQMsg mqMsg = new MQMsg(dp.getMark(), dp.serializeToBytes());
+                byte[] bytes = GsonFactory.newInstance().createGson().toJson(mqMsg).getBytes();
+                gbPushMQ.post(_host.getGbPushTopic(), bytes);
             } catch (UnsupportedEncodingException e) {
                 s_logger.debug("Unsupported encoding utf-8.");
             }
