@@ -4,7 +4,6 @@ import com.incarcloud.rooster.bigtable.IBigTable;
 import com.incarcloud.rooster.datapack.DataPackObject;
 import com.incarcloud.rooster.datapack.DataParserManager;
 import com.incarcloud.rooster.mq.IBigMQ;
-import com.incarcloud.rooster.mq.MQMsg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
