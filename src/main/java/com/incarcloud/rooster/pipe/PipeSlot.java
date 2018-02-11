@@ -5,7 +5,11 @@ import com.incarcloud.rooster.cache.ICacheManager;
 import com.incarcloud.rooster.datapack.*;
 import com.incarcloud.rooster.mq.IBigMQ;
 import com.incarcloud.rooster.mq.MQMsg;
-import com.incarcloud.rooster.util.*;
+import com.incarcloud.rooster.share.Constants;
+import com.incarcloud.rooster.util.DataPackObjectUtils;
+import com.incarcloud.rooster.util.GsonFactory;
+import com.incarcloud.rooster.util.RowKeyUtil;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -230,7 +234,7 @@ public class PipeSlot {
                             vin = m.getMark().substring(m.getMark().indexOf("|") + 1);
                         }
 
-                        if (!StringUtil.isBlank(vin)) {// 补充vin码
+                        if (!StringUtils.isBlank(vin)) {// 补充vin码
                             for (DataPackTarget t : dataPackTargetList) {
                                 t.getDataPackObject().setVin(vin);
                             }
@@ -275,14 +279,14 @@ public class PipeSlot {
             DataPackObject dataPackObject = iterator.next().getDataPackObject();
             String deviceId = dataPackObject.getDeviceId();
             String vin0 = dataPackObject.getVin();
-            if (StringUtil.isBlank(vin0) && StringUtil.isBlank(deviceId)) {
+            if (StringUtils.isBlank(vin0) && StringUtils.isBlank(deviceId)) {
                 s_logger.error("Invalid data: no vin or deviceId");
                 iterator.remove();
                 continue;
             }
 
             // 没有vin码时候,设备ID代替vin码
-            if (StringUtil.isBlank(vin0)) {
+            if (StringUtils.isBlank(vin0)) {
                 s_logger.debug("No vin: {}", dataPackObject);
                 vin = deviceId;
             } else {
@@ -457,16 +461,23 @@ public class PipeSlot {
             vin = cacheManager.get(deviceCode);
         }
 
-        // 处理数据心跳包
-        int type = Constant.HeartbeatType.NORMAL;
+        /**
+         * 处理数据心跳包<br>
+         *     device-heartbeat:  vin  --  {type, time}    单个车的心跳信息<br>
+         *     device-online:  vin --  time    设置ttl=30s，过期自动删除    查询这个ns的vins就能知道"在线总数"<br>
+         *     device-offline:   vin -- time   放离线车辆vin与离线时间   查询这个ns的vins就能知道"离线总数"<br>
+         * "异常车辆"的总数：total = len(device-heartbeat) - len(device-online) - len(device-offline)
+         * set(vin) = set(device-heartbeat:vin) - set(device-online:vin) - set(device-offline:vin)
+         */
+        int type = Constants.HeartbeatType.NORMAL;
         Date time = packObject.getDetectionTime();
         String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
         if (packObject instanceof DataPackLogInOut) {
             //VIN与设备号建立关系 （永久）
-            cacheManager.set(Constant.RedisNamespace.REDIS_NS_VEHICLE_VIN + vin, deviceCode);
+            cacheManager.set(Constants.CacheNamespace.CACHE_NS_VEHICLE_VIN + vin, deviceCode);
 
             //设备号与VIN码建立关系 （永久）
-            cacheManager.set(Constant.RedisNamespace.REDIS_NS_DEVICE_CODE + deviceCode, vin);
+            cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_CODE + deviceCode, vin);
 
             //离线车辆关系 （永久） 在线与离线互斥
             DataPackLogInOut dataPackLogInOut = (DataPackLogInOut) packObject;
@@ -474,24 +485,24 @@ public class PipeSlot {
             // 判断登陆类型
             Integer loginType = dataPackLogInOut.getLoginType();
             if (null != loginType) {
-                type = loginType == 0 ? Constant.HeartbeatType.LOGIN : Constant.HeartbeatType.LOGOUT;
-                if (type == Constant.HeartbeatType.LOGIN) {
+                type = loginType == 0 ? Constants.HeartbeatType.LOGIN : Constants.HeartbeatType.LOGOUT;
+                if (type == Constants.HeartbeatType.LOGIN) {
                     //在线车辆关系 （30S）
-                    cacheManager.set(Constant.RedisNamespace.REDIS_NS_DEVICE_ONLINE + vin, timeStr, Constant.TIME_OUT);
-                    cacheManager.delete(Constant.RedisNamespace.REDIS_NS_DEVICE_OFFLINE + vin);
-                } else if (type == Constant.HeartbeatType.LOGOUT) {
+                    cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_ONLINE + vin, timeStr, Constants.DEFAULT_HEARTBEAT_TIMEOUT);
+                    cacheManager.delete(Constants.CacheNamespace.CACHE_NS_DEVICE_OFFLINE + vin);
+                } else if (type == Constants.HeartbeatType.LOGOUT) {
                     //车辆离线
-                    cacheManager.set(Constant.RedisNamespace.REDIS_NS_DEVICE_OFFLINE + vin, timeStr);
+                    cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_OFFLINE + vin, timeStr);
                 }
             }
         }
 
         // 构建map数据
         Map<String, Object> map = new HashMap<>();
-        map.put(Constant.HeartbeatDataMapKey.TYPE, type);
-        map.put(Constant.HeartbeatDataMapKey.TIME, timeStr);
+        map.put(Constants.HeartbeatDataMapKey.TYPE, type);
+        map.put(Constants.HeartbeatDataMapKey.TIME, timeStr);
 
         //连线过的车辆关系 （永久）-- 所有数据均为心跳数据
-        cacheManager.set(Constant.RedisNamespace.REDIS_NS_DEVICE_HEARTBEAT + vin, JSON.toJSON(map).toString());
+        cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_HEARTBEAT + vin, JSON.toJSON(map).toString());
     }
 }
