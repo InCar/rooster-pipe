@@ -1,6 +1,5 @@
 package com.incarcloud.rooster.pipe;
 
-import com.alibaba.fastjson.JSON;
 import com.incarcloud.rooster.cache.ICacheManager;
 import com.incarcloud.rooster.datapack.*;
 import com.incarcloud.rooster.mq.IBigMQ;
@@ -10,6 +9,7 @@ import com.incarcloud.rooster.util.DataPackObjectUtils;
 import com.incarcloud.rooster.util.GsonFactory;
 import com.incarcloud.rooster.util.RowKeyUtil;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -193,64 +193,82 @@ public class PipeSlot {
         public void run() {
 
             while (isRunning) {
+                // 消费MQ消息
                 List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), BATCH_RECEIVE_SIZE);
 
+                // 如果消息列表为空，等待3000毫秒
                 if (null == msgList || 0 == msgList.size()) {
-                    s_logger.debug("{} receive no  message !!!", name);
+                    // 打印消息队列名称
+                    s_logger.debug("{} receive no message!!!", name);
                     try {
                         Thread.sleep(3000);
                     } catch (InterruptedException e) {
+                        s_logger.error(ExceptionUtils.getMessage(e));
                     }
                     continue;
-                } else {// 监控数据
+                } else {
+                    // 监控数据
                     receiveFromMqDataCount.getAndAdd(msgList.size());
                 }
 
-                for (byte[] b : msgList) {
+                // 处理消息
+                for (byte[] msg : msgList) {
                     DataPack dp = null;
 
                     try {
-                        String json = new String(b);
+                        // string转到datapack
+                        String json = new String(msg);
                         MQMsg m = GsonFactory.newInstance().createGson().fromJson(json, MQMsg.class);
                         dp = DataPack.deserializeFromBytes(m.getData());
                         s_logger.debug("DataPack: {}", dp.toString());
 
+                        // 获得解析器
                         IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
                         if (null == dataParser) {
                             s_logger.error("Not support {}!!!", dp.getProtocol());
                             continue;
                         }
 
-                        // 第二步解析
+                        // 调用解析器解析完整报文
                         List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);// 同一个DataPack解出的数据列表
-
                         if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
                             s_logger.info("extractBody: null, dataPackTargetList: {}, DataPack: {}", m, dp);
                             continue;
                         }
 
-                        String vin = null;// 获取消息中传过来的vin
+                        // 获取消息中传过来的deviceId，如果VIN没有默认deviceId
+                        String vin = null;
                         if (m.getMark().contains("|")) {
                             vin = m.getMark().substring(m.getMark().indexOf("|") + 1);
                         }
 
-                        if (!StringUtils.isBlank(vin)) {// 补充vin码
-                            for (DataPackTarget t : dataPackTargetList) {
-                                t.getDataPackObject().setVin(vin);
+                        // 从缓存提取VIN信息
+                        String cacheVin = cacheManager.get(Constants.CacheNamespace.CACHE_NS_DEVICE_CODE + vin);
+                        if(StringUtils.isNotBlank(cacheVin)) {
+                            vin = cacheVin;
+                        }
+
+                        // 完善DataPack车辆VIN
+                        if (StringUtils.isNotBlank(vin)) {
+                            for (DataPackTarget dataPackTarget : dataPackTargetList) {
+                                // 设置VIN信息
+                                dataPackTarget.getDataPackObject().setVin(vin);
                             }
                         }
 
+                        // 记录日志
                         for (DataPackTarget t : dataPackTargetList) {
                             s_logger.info("--> {}", t.toString());
                         }
 
                         // 保存数据
                         saveDataPacks(dataPackTargetList, dp.getReceiveTime());
-                        dispatchDataPacks(dp, dataPackTargetList);// 分发
+
+                        // 分发数据
+                        dispatchDataPacks(dp, dataPackTargetList);
 
                     } catch (Exception e) {
-                        e.printStackTrace();
-                        s_logger.error("deal with msg error, {}, \n{}", new String(b), e.getMessage());
+                        s_logger.error("Deal with msg error, {}, \n{}", new String(msg), ExceptionUtils.getMessage(e));
                     } finally {
                         if (null != dp) {
                             dp.freeBuf();
@@ -331,11 +349,11 @@ public class PipeSlot {
         }
 
         for (DataPackTarget target : dataPackTargetList) {
-            // 1、校正非法采集时间
+            // 1.校正非法采集时间
             DataPackObject packObject = target.getDataPackObject();
             packObject.setReceiveTime(receiveTime);
 
-            // 2、采集时间被接收时间重置
+            // 2.采集时间被接收时间重置
             String timeStr = null;
             if (DataPackObjectUtils.checkAndResetIlllegalDetectionDate(packObject, receiveTime0)) {
                 timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionTime()) + "N";// N表示设备未上传数据采集时间，系统自动加上采集时间
@@ -349,7 +367,7 @@ public class PipeSlot {
             dataForSave.put(rowKey, packObject);
 
             // 4、监控车辆状态信息
-            operationRedis(packObject);
+            operationCahche(packObject);
         }
 
         return dataForSave;
@@ -447,18 +465,18 @@ public class PipeSlot {
     }
 
     /**
-     * 数据处理存入Redis
+     * 数据处理存入缓存
      *
-     * @param packObject
+     * @param packObject datapack对象
      */
-    private void operationRedis(DataPackObject packObject) {
+    private void operationCahche(DataPackObject packObject) {
         // 查询设备号和VIN码
-        String deviceCode = packObject.getDeviceId();
+        String deviceId = packObject.getDeviceId();
         String vin = packObject.getVin();
 
         // 根据设备号获取VIN码 <Redis中获取>
         if (null == vin) {
-            vin = cacheManager.get(deviceCode);
+            vin = cacheManager.get(deviceId);
         }
 
         /**
@@ -474,10 +492,10 @@ public class PipeSlot {
         String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
         if (packObject instanceof DataPackLogInOut) {
             //VIN与设备号建立关系 （永久）
-            cacheManager.set(Constants.CacheNamespace.CACHE_NS_VEHICLE_VIN + vin, deviceCode);
+            cacheManager.set(Constants.CacheNamespace.CACHE_NS_VEHICLE_VIN + vin, deviceId);
 
             //设备号与VIN码建立关系 （永久）
-            cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_CODE + deviceCode, vin);
+            cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_CODE + deviceId, vin);
 
             //离线车辆关系 （永久） 在线与离线互斥
             DataPackLogInOut dataPackLogInOut = (DataPackLogInOut) packObject;
@@ -503,6 +521,6 @@ public class PipeSlot {
         map.put(Constants.HeartbeatDataMapKey.TIME, timeStr);
 
         //连线过的车辆关系 （永久）-- 所有数据均为心跳数据
-        cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_HEARTBEAT + vin, JSON.toJSON(map).toString());
+        cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_HEARTBEAT + vin, GsonFactory.newInstance().createGson().toJson(map));
     }
 }
