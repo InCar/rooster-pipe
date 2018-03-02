@@ -1,5 +1,5 @@
 group 'com.incarcloud'
-version '2.1.20-SNAPSHOT'
+version '2.1.24-SNAPSHOT'
 
 allprojects {
     apply plugin: 'java'
@@ -26,6 +26,10 @@ allprojects {
         }
     }
 
+    /*configurations.all {
+        resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+    }*/
+
     buildscript {
         repositories {
             maven { url "http://121.40.157.200:8044/content/groups/public/" }
@@ -51,12 +55,9 @@ allprojects {
 }
 
 dependencies {
-    compile("com.incarcloud:rooster-shared:2.1.20-SNAPSHOT")
+    compile("com.incarcloud:rooster-shared:2.1.24-SNAPSHOT")
 
     compile("org.slf4j:slf4j-api:1.7.+")
-
-    compile("com.alibaba:fastjson:1.2.+")
-    compile("org.apache.commons:commons-lang3:3.+")
 
     testCompile("junit:junit:4.+")
 }

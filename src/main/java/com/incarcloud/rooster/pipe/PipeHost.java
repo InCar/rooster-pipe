@@ -102,7 +102,7 @@ public class PipeHost {
         if (_bRunning) return;
 
         if (0 == _slots.size()) {
-            s_logger.error("no slot!!!");
+            s_logger.error("No slot!!!");
             System.exit(-1);
         }
 
