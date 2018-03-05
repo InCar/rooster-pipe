@@ -194,7 +194,11 @@ public class PipeSlot {
 
             while (isRunning) {
                 // 消费MQ消息
-                List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), BATCH_RECEIVE_SIZE);
+                List<byte[]> msgList = null;
+                synchronized (this) {
+                    // 解决kafka不支持多线程消费的问题
+                    msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), BATCH_RECEIVE_SIZE);
+                }
 
                 // 如果消息列表为空，等待3000毫秒
                 if (null == msgList || 0 == msgList.size()) {
