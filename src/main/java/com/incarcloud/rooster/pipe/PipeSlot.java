@@ -41,7 +41,7 @@ public class PipeSlot {
     /**
      * 接收数据线程数
      */
-    private static final int RECEIVE_DATA_THREAD_COUNT = 2;
+    private static final int RECEIVE_DATA_THREAD_COUNT = 1;
 
     /**
      * 执行定时监控运行状态的线程池
@@ -194,11 +194,7 @@ public class PipeSlot {
 
             while (isRunning) {
                 // 消费MQ消息
-                List<byte[]> msgList = null;
-                synchronized (this) {
-                    // 解决kafka不支持多线程消费的问题
-                    msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), BATCH_RECEIVE_SIZE);
-                }
+                List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), BATCH_RECEIVE_SIZE);
 
                 // 如果消息列表为空，等待3000毫秒
                 if (null == msgList || 0 == msgList.size()) {
