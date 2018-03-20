@@ -490,27 +490,33 @@ public class PipeSlot {
         int type = Constants.HeartbeatType.NORMAL;
         Date time = packObject.getDetectionTime();
         String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
-        if (packObject instanceof DataPackLogInOut) {
+        if (packObject instanceof DataPackLogIn || packObject instanceof DataPackLogOut) {
             //VIN与设备号建立关系 （永久）
             cacheManager.set(Constants.CacheNamespace.CACHE_NS_VEHICLE_VIN + vin, deviceId);
 
             //设备号与VIN码建立关系 （永久）
             cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_CODE + deviceId, vin);
 
-            //离线车辆关系 （永久） 在线与离线互斥
-            DataPackLogInOut dataPackLogInOut = (DataPackLogInOut) packObject;
-
             // 判断登陆类型
-            Integer loginType = dataPackLogInOut.getLoginType();
+            Integer loginType = null ;
+
+            //离线车辆关系 （永久） 在线与离线互斥
+            if (packObject instanceof DataPackLogIn){
+                DataPackLogIn dataPackLogIn = (DataPackLogIn) packObject;
+                loginType = dataPackLogIn.getLoginType();
+            }else if(packObject instanceof DataPackLogOut){
+                DataPackLogOut dataPackLogOut = (DataPackLogOut) packObject;
+                loginType = dataPackLogOut.getLoginType();
+            }
+
             if (null != loginType) {
                 type = loginType == 0 ? Constants.HeartbeatType.LOGIN : Constants.HeartbeatType.LOGOUT;
                 if (type == Constants.HeartbeatType.LOGIN) {
-                    //在线车辆关系 （30S）
-                    cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_ONLINE + vin, timeStr, Constants.DEFAULT_HEARTBEAT_TIMEOUT);
                     cacheManager.delete(Constants.CacheNamespace.CACHE_NS_DEVICE_OFFLINE + vin);
                 } else if (type == Constants.HeartbeatType.LOGOUT) {
                     //车辆离线
                     cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_OFFLINE + vin, timeStr);
+                    cacheManager.delete(Constants.CacheNamespace.CACHE_NS_DEVICE_ONLINE + vin);
                 }
             }
         }
@@ -519,6 +525,11 @@ public class PipeSlot {
         Map<String, Object> map = new HashMap<>();
         map.put(Constants.HeartbeatDataMapKey.TYPE, type);
         map.put(Constants.HeartbeatDataMapKey.TIME, timeStr);
+
+        if (!(packObject instanceof DataPackLogOut) || !(packObject instanceof DataPackActivation)){
+            //在线车辆关系 （30S）
+            cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_ONLINE + vin, timeStr, Constants.DEFAULT_HEARTBEAT_TIMEOUT);
+        }
 
         //连线过的车辆关系 （永久）-- 所有数据均为心跳数据
         cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_HEARTBEAT + vin, GsonFactory.newInstance().createGson().toJson(map));
