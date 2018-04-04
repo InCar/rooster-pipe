@@ -14,6 +14,7 @@ allprojects {
         MAVEN_URL_SNAPSHOTS = 'http://121.40.157.200:8044/content/repositories/snapshots/'
         MAVEN_AUTH_USERNAME = 'deployment'
         MAVEN_AUTH_PASSWORD = 'AskForAdminIfUpload'
+        roosterVersion = "latest.integration"
     }
 
     repositories {
@@ -55,7 +56,7 @@ allprojects {
 }
 
 dependencies {
-    compile("com.incarcloud:rooster-shared:2.1.30-SNAPSHOT")
+    compile("com.incarcloud:rooster-shared:${roosterVersion}")
 
     compile("org.slf4j:slf4j-api:1.7.+")
 
