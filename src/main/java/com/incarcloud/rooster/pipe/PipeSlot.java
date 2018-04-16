@@ -243,7 +243,7 @@ public class PipeSlot {
                         }
 
                         // 从缓存提取VIN信息
-                        String cacheVin = cacheManager.get(Constants.CacheNamespace.CACHE_NS_DEVICE_CODE + vin);
+                        String cacheVin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH , vin);
                         if(StringUtils.isNotBlank(cacheVin)) {
                             vin = cacheVin;
                         }
@@ -492,10 +492,10 @@ public class PipeSlot {
         String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
         if (packObject instanceof DataPackLogIn || packObject instanceof DataPackLogOut) {
             //VIN与设备号建立关系 （永久）
-            cacheManager.set(Constants.CacheNamespace.CACHE_NS_VEHICLE_VIN + vin, deviceId);
+            cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_VIN_HASH , vin, deviceId);
 
             //设备号与VIN码建立关系 （永久）
-            cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_CODE + deviceId, vin);
+            cacheManager.hset(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH , deviceId, vin);
 
             // 判断登陆类型
             Integer loginType = null ;
@@ -512,11 +512,11 @@ public class PipeSlot {
             if (null != loginType) {
                 type = loginType == 0 ? Constants.HeartbeatType.LOGIN : Constants.HeartbeatType.LOGOUT;
                 if (type == Constants.HeartbeatType.LOGIN) {
-                    cacheManager.delete(Constants.CacheNamespace.CACHE_NS_DEVICE_OFFLINE + vin);
+                    cacheManager.hdelete(Constants.CacheNamespaceKey.CACHE_VEHICLE_OFFLINE_HASH , vin);
                 } else if (type == Constants.HeartbeatType.LOGOUT) {
                     //车辆离线
-                    cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_OFFLINE + vin, timeStr);
-                    cacheManager.delete(Constants.CacheNamespace.CACHE_NS_DEVICE_ONLINE + vin);
+                    cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_OFFLINE_HASH , vin, timeStr);
+                    cacheManager.delete(Constants.CacheNamespaceKey.CACHE_NS_VEHICLE_ONLINE + vin);
                 }
             }
         }
@@ -528,10 +528,10 @@ public class PipeSlot {
 
         if (!(packObject instanceof DataPackLogOut) || !(packObject instanceof DataPackActivation)){
             //在线车辆关系 （30S）
-            cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_ONLINE + vin, timeStr, Constants.DEFAULT_HEARTBEAT_TIMEOUT);
+            cacheManager.set(Constants.CacheNamespaceKey.CACHE_NS_VEHICLE_ONLINE + vin, timeStr, Constants.DEFAULT_HEARTBEAT_TIMEOUT);
         }
 
         //连线过的车辆关系 （永久）-- 所有数据均为心跳数据
-        cacheManager.set(Constants.CacheNamespace.CACHE_NS_DEVICE_HEARTBEAT + vin, GsonFactory.newInstance().createGson().toJson(map));
+        cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_HEARTBEAT_HASH , vin, GsonFactory.newInstance().createGson().toJson(map));
     }
 }
