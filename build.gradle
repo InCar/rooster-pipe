@@ -1,12 +1,12 @@
 group 'com.incarcloud'
-version '2.1.32-SNAPSHOT'
+version '2.2.2-SNAPSHOT'
 
 allprojects {
     apply plugin: 'java'
     apply plugin: 'maven'
 
-    sourceCompatibility = 1.8
-    targetCompatibility = 1.8
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
 
     ext {
         MAVEN_URL_PUTLIC = 'http://121.40.157.200:8044/content/groups/public/'
@@ -14,7 +14,6 @@ allprojects {
         MAVEN_URL_SNAPSHOTS = 'http://121.40.157.200:8044/content/repositories/snapshots/'
         MAVEN_AUTH_USERNAME = 'deployment'
         MAVEN_AUTH_PASSWORD = 'AskForAdminIfUpload'
-        roosterVersion = "latest.integration"
     }
 
     repositories {
@@ -56,7 +55,7 @@ allprojects {
 }
 
 dependencies {
-    compile("com.incarcloud:rooster-shared:${roosterVersion}")
+    compile("com.incarcloud:rooster-shared:2.2.+")
 
     compile("org.slf4j:slf4j-api:1.7.+")
 
