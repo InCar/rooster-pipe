@@ -328,6 +328,7 @@ public class PipeSlot {
      * @return 待保存的数据
      */
     private Map<String, DataPackObject> treatDetectionAndGetDataPackObject(List<DataPackTarget> dataPackTargetList, Date receiveTime, String vin) {
+        // 初始化
         Map<String, DataPackObject> dataForSave = new HashMap<>();
 
         // 处理检测日期
@@ -337,7 +338,11 @@ public class PipeSlot {
          * 2.该批数据（属于同一个包）不含位置数据 或 位置数据不带有合法采集时间，用接收时间重置所有包的采集时间。
          */
         Date receiveTime0 = receiveTime;
-        for (DataPackTarget target : dataPackTargetList) {// 获取位置时间覆盖接收时间
+        for (DataPackTarget target : dataPackTargetList) {
+            // TODO 设置timestamp到id，云平台测试完毕后删除
+            target.getDataPackObject().setId("" + receiveTime.getTime());
+
+            // 获取位置时间覆盖接收时间
             if (target.getDataPackObject() instanceof DataPackPosition) {
                 DataPackPosition position = (DataPackPosition) target.getDataPackObject();
                 if (DataPackObjectUtils.isLegalDetectionDate(position.getPositionTime())) {
@@ -422,6 +427,7 @@ public class PipeSlot {
         // 处理采集时间,生成rowkey
         Map<String, DataPackObject> dataForSave = treatDetectionAndGetDataPackObject(dataPackTargetList, receiveTime, vin);
         for (Map.Entry<String, DataPackObject> data : dataForSave.entrySet()) {
+            // 保持数据到BigTable
             saveDataPackObject(data.getKey(), data.getValue(), receiveTime);
         }
 
