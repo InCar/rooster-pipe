@@ -13,7 +13,7 @@ allprojects {
         MAVEN_URL_RELEASE = 'http://121.40.157.200:8044/content/repositories/releases/'
         MAVEN_URL_SNAPSHOTS = 'http://121.40.157.200:8044/content/repositories/snapshots/'
         MAVEN_AUTH_USERNAME = 'deployment'
-        MAVEN_AUTH_PASSWORD = 'deploy123456'
+        MAVEN_AUTH_PASSWORD = 'AskForAdminIfUpload'
     }
 
     repositories {
