@@ -14,14 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author Xiong Guanghua
@@ -312,6 +307,9 @@ public class PipeSlot {
                         for (DataPackTarget dataPackTarget : dataPackTargetList) {
                             // 设置VIN信息
                             dataPackTarget.getDataPackObject().setVin(vin);
+
+                            // TODO 设置timestamp到id，云平台测试完毕后删除
+                            dataPackTarget.getDataPackObject().setId("" + dp.getGatherTime().getTime());
                         }
                     }
 
@@ -396,9 +394,6 @@ public class PipeSlot {
          */
         Date receiveTime0 = receiveTime;
         for (DataPackTarget target : dataPackTargetList) {
-            // TODO 设置timestamp到id，云平台测试完毕后删除
-            target.getDataPackObject().setId("" + receiveTime.getTime());
-
             // 获取位置时间覆盖接收时间
             if (target.getDataPackObject() instanceof DataPackPosition) {
                 DataPackPosition position = (DataPackPosition) target.getDataPackObject();
