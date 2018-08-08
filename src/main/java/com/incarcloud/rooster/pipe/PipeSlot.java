@@ -14,8 +14,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -36,52 +38,52 @@ public class PipeSlot {
     /**
      * 一批次接受消息的数量
      */
-    private static final int BATCH_RECEIVE_SIZE = 10;
+    private static final int BATCH_RECEIVE_SIZE = 200;
 
     /**
      * 接收数据线程数
      */
     private static final int RECEIVE_DATA_THREAD_COUNT = 1;
 
-    /**
-     * 执行定时监控运行状态的线程池
-     */
-    private ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
+//    /**
+//     * 执行定时监控运行状态的线程池
+//     */
+//    private ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
 
-    /**
-     * 监控数据：截止现在从消息队列取出的消息数量
-     */
-    private volatile AtomicInteger receiveFromMqDataCount = new AtomicInteger(0);
+//    /**
+//     * 监控数据：截止现在从消息队列取出的消息数量
+//     */
+//    private volatile AtomicInteger receiveFromMqDataCount = new AtomicInteger(0);
+//
+//    /**
+//     * 监控数据：截止现在保存到bigtable的数据条数
+//     */
+//    private volatile AtomicInteger saveToBigtableDataCount = new AtomicInteger(0);
+//
+//    /**
+//     * 监控数据：截止现在保存到bigtable失败的数据条数
+//     */
+//    private volatile AtomicInteger saveToBigtableFailedDataCount = new AtomicInteger(0);
 
-    /**
-     * 监控数据：截止现在保存到bigtable的数据条数
-     */
-    private volatile AtomicInteger saveToBigtableDataCount = new AtomicInteger(0);
+//    /**
+//     * 上次统计的值-取出的消息数量
+//     */
+//    private volatile int lastReceiveFromMqDataCount = 0;
+//
+//    /**
+//     * 上次统计的值-保存到bigtable的数据条数
+//     */
+//    private volatile int lastSaveToBigtableDataCount = 0;
+//
+//    /**
+//     * 上次统计的值-保存到bigtable失败的数据条数
+//     */
+//    private volatile int lastSaveToBigtableFailedDataCount = 0;
 
-    /**
-     * 监控数据：截止现在保存到bigtable失败的数据条数
-     */
-    private volatile AtomicInteger saveToBigtableFailedDataCount = new AtomicInteger(0);
-
-    /**
-     * 上次统计的值-取出的消息数量
-     */
-    private volatile int lastReceiveFromMqDataCount = 0;
-
-    /**
-     * 上次统计的值-保存到bigtable的数据条数
-     */
-    private volatile int lastSaveToBigtableDataCount = 0;
-
-    /**
-     * 上次统计的值-保存到bigtable失败的数据条数
-     */
-    private volatile int lastSaveToBigtableFailedDataCount = 0;
-
-    /**
-     * 统计间隔时间（秒）
-     */
-    private int period = 20;
+//    /**
+//     * 统计间隔时间（秒）
+//     */
+//    private int period = 20;
 
     /**
      * 名称
@@ -128,34 +130,37 @@ public class PipeSlot {
         isRunning = true;
 
         // 开个线程防止阻塞
-        for (int i = 0; i < RECEIVE_DATA_THREAD_COUNT; i++) {
-            Thread workThread = new Thread(workThreadGroup, new PipeSlotReceiveDateProcess(name + "-PipeSlotProcess-" + i, _host.getReceiveDataMQ()));
-            workThread.start();
-        }
+//        for (int i = 0; i < RECEIVE_DATA_THREAD_COUNT; i++) {
+//            Thread workThread = new Thread(workThreadGroup, new PipeSlotReceiveDateProcess(name + "-PipeSlotProcess-" + i, _host.getReceiveDataMQ()));
+//            workThread.start();
+//        }
 
-        // 间隔一定时间监控运行状况
-        scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
+        Thread workThread = new Thread(new PipeSlotReceiveDateProcess(name + "-PipeSlotProcess-" + 0, _host.getReceiveDataMQ())) ;
+        workThread.start();
 
-            public void run() {
-                // 取出的消息数量
-                int _receiveFromMqDataCount = receiveFromMqDataCount.get();
-                int newReceiveFromMqDataCount = _receiveFromMqDataCount - lastReceiveFromMqDataCount;
-                lastReceiveFromMqDataCount = _receiveFromMqDataCount;
-
-                // 保存到bigtable的数据条数
-                int _saveToBigtableDataCount = saveToBigtableDataCount.get();
-                int newSaveToBigtableDataCount = _saveToBigtableDataCount - lastSaveToBigtableDataCount;
-                lastSaveToBigtableDataCount = _saveToBigtableDataCount;
-
-                // 保存到bigtable失败的数据条数
-                int _saveToBigtableFailedDataCount = saveToBigtableFailedDataCount.get();
-                int newSaveToBigtableFailedDataCount = _saveToBigtableFailedDataCount - lastSaveToBigtableFailedDataCount;
-                lastSaveToBigtableFailedDataCount = _saveToBigtableFailedDataCount;
-
-                // 记录日志
-                s_logger.info("{} in last {} s, total {} msg receive from mq, total {} saved to bigtable, total {} failed save to bigtable!!!", PipeSlot.this.name, period, newReceiveFromMqDataCount, newSaveToBigtableDataCount, newSaveToBigtableFailedDataCount);
-            }
-        }, period, period, TimeUnit.SECONDS);
+//        // 间隔一定时间监控运行状况
+//        scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
+//
+//            public void run() {
+//                // 取出的消息数量
+//                int _receiveFromMqDataCount = receiveFromMqDataCount.get();
+//                int newReceiveFromMqDataCount = _receiveFromMqDataCount - lastReceiveFromMqDataCount;
+//                lastReceiveFromMqDataCount = _receiveFromMqDataCount;
+//
+//                // 保存到bigtable的数据条数
+//                int _saveToBigtableDataCount = saveToBigtableDataCount.get();
+//                int newSaveToBigtableDataCount = _saveToBigtableDataCount - lastSaveToBigtableDataCount;
+//                lastSaveToBigtableDataCount = _saveToBigtableDataCount;
+//
+//                // 保存到bigtable失败的数据条数
+//                int _saveToBigtableFailedDataCount = saveToBigtableFailedDataCount.get();
+//                int newSaveToBigtableFailedDataCount = _saveToBigtableFailedDataCount - lastSaveToBigtableFailedDataCount;
+//                lastSaveToBigtableFailedDataCount = _saveToBigtableFailedDataCount;
+//
+//                // 记录日志
+//                s_logger.info("{} in last {} s, total {} msg receive from mq, total {} saved to bigtable, total {} failed save to bigtable!!!", PipeSlot.this.name, period, newReceiveFromMqDataCount, newSaveToBigtableDataCount, newSaveToBigtableFailedDataCount);
+//            }
+//        }, period, period, TimeUnit.SECONDS);
 
         s_logger.info(name + " start success!!!");
     }
@@ -165,7 +170,7 @@ public class PipeSlot {
      */
     public void stop() {
         isRunning = false;// 等待线程自己结束
-        scheduledExecutorService.shutdownNow();
+//        scheduledExecutorService.shutdownNow();
     }
 
     /**
@@ -189,97 +194,149 @@ public class PipeSlot {
             return name;
         }
 
+        /**
+         * 并发队列-无界非阻塞队列
+         */
+        private Queue<List<byte[]>> queue = new ConcurrentLinkedQueue<>();
+
         @Override
         public void run() {
 
+            // 开启10个线程消费队列消息
+            for (int i = 0; i < 10 ; i++) {
+                new Thread(()->dealQueueMsg()).start();
+            }
+
+            // 只获取MQ消息放入队列，不进行别的操作，为了加快消费MQ消息
             while (isRunning) {
                 // 消费MQ消息
                 List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), BATCH_RECEIVE_SIZE);
 
-                // 如果消息列表为空，等待3000毫秒
+                // 如果消息列表为空，等待1000毫秒
                 if (null == msgList || 0 == msgList.size()) {
                     // 打印消息队列名称
                     s_logger.debug("{} receive no message!!!", name);
                     try {
-                        Thread.sleep(3000);
+                        Thread.sleep(1000);
                     } catch (InterruptedException e) {
                         s_logger.error(ExceptionUtils.getMessage(e));
                     }
                     continue;
-                } else {
-                    // 监控数据
-                    receiveFromMqDataCount.getAndAdd(msgList.size());
                 }
 
-                // 处理消息
-                for (byte[] msg : msgList) {
-                    DataPack dp = null;
-
+                // 如果队列消息大于2000没有消息，则等待，一般情况不会达到
+                if (queue.size() > 2000){
+                    s_logger.info("queue msg accumulation, waiting 1s ...");
                     try {
-                        // string转到datapack
-                        String json = new String(msg);
-                        MQMsg m = GsonFactory.newInstance().createGson().fromJson(json, MQMsg.class);
-                        dp = DataPack.deserializeFromBytes(m.getData());
-                        s_logger.debug("DataPack: {}", dp.toString());
-
-                        // 获得解析器
-                        IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
-                        if (null == dataParser) {
-                            s_logger.error("Not support {}!!!", dp.getProtocol());
-                            continue;
-                        }
-
-                        // 调用解析器解析完整报文
-                        List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);// 同一个DataPack解出的数据列表
-                        if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
-                            s_logger.info("extractBody: null, dataPackTargetList: {}, DataPack: {}", m, dp);
-                            continue;
-                        }
-
-                        // 获取消息中传过来的deviceId，如果VIN没有默认deviceId
-                        String vin = null;
-                        if (m.getMark().contains("|")) {
-                            vin = m.getMark().substring(m.getMark().indexOf("|") + 1);
-                        }
-
-                        // 从缓存提取VIN信息
-                        String cacheVin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH , vin);
-                        if(StringUtils.isNotBlank(cacheVin)) {
-                            vin = cacheVin;
-                        }
-
-                        // 完善DataPack车辆VIN
-                        if (StringUtils.isNotBlank(vin)) {
-                            for (DataPackTarget dataPackTarget : dataPackTargetList) {
-                                // 设置VIN信息
-                                dataPackTarget.getDataPackObject().setVin(vin);
-                            }
-                        }
-
-                        // 记录日志
-                        for (DataPackTarget t : dataPackTargetList) {
-                            s_logger.info("--> {}", t.toString());
-                        }
-
-                        // 保存数据
-                        saveDataPacks(dataPackTargetList, dp.getReceiveTime());
-
-                        // 分发数据
-                        dispatchDataPacks(dp, dataPackTargetList);
-
-                    } catch (Exception e) {
-                        s_logger.error("Deal with msg error, {}, \n{}", new String(msg), ExceptionUtils.getMessage(e));
-                    } finally {
-                        if (null != dp) {
-                            dp.freeBuf();
-                        }
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
                 }
+//                else {
+//                    // 监控数据
+//                    receiveFromMqDataCount.getAndAdd(msgList.size());
+//                }
+                // 存放无边界消息队列
+                queue.add(msgList) ;
             }
 
             // 停止后释放连接
             receiveDataMQ.releaseCurrentConn(_host.getReceiveDataTopic());
         }
+
+        /**
+         * 消费队列消息
+         */
+        private void dealQueueMsg(){
+            while(true){
+                long start = System.currentTimeMillis() ;
+                if (queue.size() > 0){
+                    List<byte[]> msgList = queue.poll() ;
+                    if (null == msgList) {
+                        continue;
+                    }
+                    dealMQMsg(msgList) ;
+                    s_logger.info("deal one group time {}",(System.currentTimeMillis()-start));
+                }
+            }
+        }
+
+        /**
+         * 处理MQ消息
+         * @param msgList
+         */
+        private void dealMQMsg(List<byte[]> msgList){
+            if (null == msgList || msgList.size() == 0){
+                return;
+            }
+            // 处理消息
+            for (byte[] msg : msgList) {
+                DataPack dp = null;
+
+                try {
+                    // string转到datapack
+                    String json = new String(msg);
+                    MQMsg m = GsonFactory.newInstance().createGson().fromJson(json, MQMsg.class);
+                    dp = DataPack.deserializeFromBytes(m.getData());
+                    s_logger.debug("DataPack: {}", dp.toString());
+
+                    // 获得解析器
+                    IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
+                    if (null == dataParser) {
+                        s_logger.error("Not support {}!!!", dp.getProtocol());
+                        continue;
+                    }
+
+                    // 调用解析器解析完整报文
+                    List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);// 同一个DataPack解出的数据列表
+                    if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
+                        s_logger.info("extractBody: null, dataPackTargetList: {}, DataPack: {}", m, dp);
+                        continue;
+                    }
+
+                    // 获取消息中传过来的deviceId，如果VIN没有默认deviceId
+                    String vin = null;
+                    if (m.getMark().contains("|")) {
+                        vin = m.getMark().substring(m.getMark().indexOf("|") + 1);
+                    }
+
+                    // 从缓存提取VIN信息
+                    String cacheVin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH , vin);
+                    if(StringUtils.isNotBlank(cacheVin)) {
+                        vin = cacheVin;
+                    }
+
+                    // 完善DataPack车辆VIN
+                    if (StringUtils.isNotBlank(vin)) {
+                        for (DataPackTarget dataPackTarget : dataPackTargetList) {
+                            // 设置VIN信息
+                            dataPackTarget.getDataPackObject().setVin(vin);
+                        }
+                    }
+
+//                    // 记录日志
+//                    for (DataPackTarget t : dataPackTargetList) {
+//                        s_logger.info("--> {}", t.toString());
+//                    }
+
+                    // 保存数据
+                    saveDataPacks(dataPackTargetList, dp.getReceiveTime());
+
+                    // 分发数据
+                    dispatchDataPacks(dp, dataPackTargetList);
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    s_logger.error("Deal with msg error, {}, \n{}, \n{}", new String(msg), ExceptionUtils.getMessage(e),e.getMessage());
+                } finally {
+                    if (null != dp) {
+                        dp.freeBuf();
+                    }
+                }
+            }
+        }
+
     }
 
     /**
@@ -402,12 +459,12 @@ public class PipeSlot {
         s_logger.debug("saveDataPackObject: {}, {}", rowKey, dataPackObject);
         try {
             _host.saveDataPackObject(rowKey, dataPackObject, receiveTime);
-            saveToBigtableDataCount.incrementAndGet();
+//            saveToBigtableDataCount.incrementAndGet();
             s_logger.debug("Save success: ", rowKey);
         } catch (Exception e) {
             e.printStackTrace();
             s_logger.error("Save failed: {}, {}", rowKey, e.getMessage());
-            saveToBigtableFailedDataCount.incrementAndGet();
+//            saveToBigtableFailedDataCount.incrementAndGet();
         }
     }
 
