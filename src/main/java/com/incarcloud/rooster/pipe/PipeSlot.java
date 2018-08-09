@@ -309,7 +309,9 @@ public class PipeSlot {
                             dataPackTarget.getDataPackObject().setVin(vin);
 
                             // TODO 设置timestamp到id，云平台测试完毕后删除
-                            dataPackTarget.getDataPackObject().setId("" + dp.getGatherTime().getTime());
+                            if(null != dp && null != dp.getGatherTime()) {
+                                dataPackTarget.getDataPackObject().setId("" + dp.getGatherTime().getTime());
+                            }
                         }
                     }
 
