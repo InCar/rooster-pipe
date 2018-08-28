@@ -198,7 +198,7 @@ public class PipeSlot {
         public void run() {
 
             // 开启10个线程消费队列消息
-            for (int i = 0; i < 10 ; i++) {
+            for (int i = 0; i < 50 ; i++) {
                 new Thread(()->dealQueueMsg()).start();
             }
 
