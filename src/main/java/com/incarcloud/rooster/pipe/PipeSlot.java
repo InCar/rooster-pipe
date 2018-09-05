@@ -17,6 +17,9 @@ import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Xiong Guanghua
@@ -39,6 +42,11 @@ public class PipeSlot {
      * 接收数据线程数
      */
     private static final int RECEIVE_DATA_THREAD_COUNT = 1;
+
+    /**
+     * 初始化处理队列线程数量
+     */
+    private static final int DEAL_QUEUE_THREAD = 50 ;
 
 //    /**
 //     * 执行定时监控运行状态的线程池
@@ -197,9 +205,9 @@ public class PipeSlot {
         @Override
         public void run() {
 
-            // 开启10个线程消费队列消息
-            for (int i = 0; i < 50 ; i++) {
-                new Thread(()->dealQueueMsg()).start();
+            // 开启线程消费队列消息
+            for (int i = 0; i < DEAL_QUEUE_THREAD ; i++) {
+                new Thread(()->dealQueueMsg()).start() ;
             }
 
             // 只获取MQ消息放入队列，不进行别的操作，为了加快消费MQ消息
@@ -234,6 +242,19 @@ public class PipeSlot {
 //                }
                 // 存放无边界消息队列
                 queue.add(msgList) ;
+
+                /**
+                 * 默认从MQ主动获取是50条数据
+                 * 如果数据条数小于50条数据时，则说明MQ数据比较少
+                 * 等待1S降低性能
+                 */
+                if (msgList.size() < 50){
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
 
             // 停止后释放连接
@@ -245,14 +266,33 @@ public class PipeSlot {
          */
         private void dealQueueMsg(){
             while(true){
-                long start = System.currentTimeMillis() ;
                 if (queue.size() > 0){
                     List<byte[]> msgList = queue.poll() ;
                     if (null == msgList) {
                         continue;
                     }
                     dealMQMsg(msgList) ;
-                    s_logger.info("deal one group time {}",(System.currentTimeMillis()-start));
+                    /**
+                     * 默认从MQ主动获取是50条数据
+                     * 如果数据条数小于50条数据时，则说明MQ数据比较少
+                     * 等待1S降低性能
+                     */
+                    if (msgList.size() < 50){
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }else{
+                    /**
+                     * 没有数据则等待1S再处理
+                     */
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
