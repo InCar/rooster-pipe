@@ -5,7 +5,7 @@ import com.incarcloud.rooster.datapack.*;
 import com.incarcloud.rooster.mq.IBigMQ;
 import com.incarcloud.rooster.mq.MQMsg;
 import com.incarcloud.rooster.share.Constants;
-import com.incarcloud.rooster.util.DataPackObjectUtils;
+import com.incarcloud.rooster.util.DataPackObjectUtil;
 import com.incarcloud.rooster.util.GsonFactory;
 import com.incarcloud.rooster.util.RowKeyUtil;
 import org.apache.commons.lang3.StringUtils;
@@ -17,9 +17,6 @@ import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author Xiong Guanghua
@@ -39,54 +36,9 @@ public class PipeSlot {
     private static final int BATCH_RECEIVE_SIZE = 200;
 
     /**
-     * 接收数据线程数
-     */
-    private static final int RECEIVE_DATA_THREAD_COUNT = 1;
-
-    /**
      * 初始化处理队列线程数量
      */
-    private static final int DEAL_QUEUE_THREAD = 50 ;
-
-//    /**
-//     * 执行定时监控运行状态的线程池
-//     */
-//    private ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
-
-//    /**
-//     * 监控数据：截止现在从消息队列取出的消息数量
-//     */
-//    private volatile AtomicInteger receiveFromMqDataCount = new AtomicInteger(0);
-//
-//    /**
-//     * 监控数据：截止现在保存到bigtable的数据条数
-//     */
-//    private volatile AtomicInteger saveToBigtableDataCount = new AtomicInteger(0);
-//
-//    /**
-//     * 监控数据：截止现在保存到bigtable失败的数据条数
-//     */
-//    private volatile AtomicInteger saveToBigtableFailedDataCount = new AtomicInteger(0);
-
-//    /**
-//     * 上次统计的值-取出的消息数量
-//     */
-//    private volatile int lastReceiveFromMqDataCount = 0;
-//
-//    /**
-//     * 上次统计的值-保存到bigtable的数据条数
-//     */
-//    private volatile int lastSaveToBigtableDataCount = 0;
-//
-//    /**
-//     * 上次统计的值-保存到bigtable失败的数据条数
-//     */
-//    private volatile int lastSaveToBigtableFailedDataCount = 0;
-
-//    /**
-//     * 统计间隔时间（秒）
-//     */
-//    private int period = 20;
+    private static final int DEAL_QUEUE_THREAD = 50;
 
     /**
      * 名称
@@ -97,11 +49,6 @@ public class PipeSlot {
      * slot是否继续工作
      */
     private volatile boolean isRunning = false;
-
-    /**
-     * slot 工作线程组(后期可能需要管理线程)
-     */
-    private ThreadGroup workThreadGroup = new ThreadGroup(name + "workThreadGroup");
 
     /**
      * 采集槽所在主机
@@ -132,38 +79,8 @@ public class PipeSlot {
         s_logger.info(name + " start receive message!!!");
         isRunning = true;
 
-        // 开个线程防止阻塞
-//        for (int i = 0; i < RECEIVE_DATA_THREAD_COUNT; i++) {
-//            Thread workThread = new Thread(workThreadGroup, new PipeSlotReceiveDateProcess(name + "-PipeSlotProcess-" + i, _host.getReceiveDataMQ()));
-//            workThread.start();
-//        }
-
-        Thread workThread = new Thread(new PipeSlotReceiveDateProcess(name + "-PipeSlotProcess-" + 0, _host.getReceiveDataMQ())) ;
+        Thread workThread = new Thread(new PipeSlotReceiveDateProcess(name + "-PipeSlotProcess-" + 0, _host.getReceiveDataMQ()));
         workThread.start();
-
-//        // 间隔一定时间监控运行状况
-//        scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-//
-//            public void run() {
-//                // 取出的消息数量
-//                int _receiveFromMqDataCount = receiveFromMqDataCount.get();
-//                int newReceiveFromMqDataCount = _receiveFromMqDataCount - lastReceiveFromMqDataCount;
-//                lastReceiveFromMqDataCount = _receiveFromMqDataCount;
-//
-//                // 保存到bigtable的数据条数
-//                int _saveToBigtableDataCount = saveToBigtableDataCount.get();
-//                int newSaveToBigtableDataCount = _saveToBigtableDataCount - lastSaveToBigtableDataCount;
-//                lastSaveToBigtableDataCount = _saveToBigtableDataCount;
-//
-//                // 保存到bigtable失败的数据条数
-//                int _saveToBigtableFailedDataCount = saveToBigtableFailedDataCount.get();
-//                int newSaveToBigtableFailedDataCount = _saveToBigtableFailedDataCount - lastSaveToBigtableFailedDataCount;
-//                lastSaveToBigtableFailedDataCount = _saveToBigtableFailedDataCount;
-//
-//                // 记录日志
-//                s_logger.info("{} in last {} s, total {} msg receive from mq, total {} saved to bigtable, total {} failed save to bigtable!!!", PipeSlot.this.name, period, newReceiveFromMqDataCount, newSaveToBigtableDataCount, newSaveToBigtableFailedDataCount);
-//            }
-//        }, period, period, TimeUnit.SECONDS);
 
         s_logger.info(name + " start success!!!");
     }
@@ -173,7 +90,6 @@ public class PipeSlot {
      */
     public void stop() {
         isRunning = false;// 等待线程自己结束
-//        scheduledExecutorService.shutdownNow();
     }
 
     /**
@@ -206,8 +122,8 @@ public class PipeSlot {
         public void run() {
 
             // 开启线程消费队列消息
-            for (int i = 0; i < DEAL_QUEUE_THREAD ; i++) {
-                new Thread(()->dealQueueMsg()).start() ;
+            for (int i = 0; i < DEAL_QUEUE_THREAD; i++) {
+                new Thread(() -> dealQueueMsg()).start();
             }
 
             // 只获取MQ消息放入队列，不进行别的操作，为了加快消费MQ消息
@@ -228,7 +144,7 @@ public class PipeSlot {
                 }
 
                 // 如果队列消息大于2000没有消息，则等待，一般情况不会达到
-                if (queue.size() > 2000){
+                if (queue.size() > 2000) {
                     s_logger.info("queue msg accumulation, waiting 1s ...");
                     try {
                         Thread.sleep(1000);
@@ -236,19 +152,16 @@ public class PipeSlot {
                         e.printStackTrace();
                     }
                 }
-//                else {
-//                    // 监控数据
-//                    receiveFromMqDataCount.getAndAdd(msgList.size());
-//                }
+
                 // 存放无边界消息队列
-                queue.add(msgList) ;
+                queue.add(msgList);
 
                 /**
                  * 默认从MQ主动获取是50条数据
                  * 如果数据条数小于50条数据时，则说明MQ数据比较少
                  * 等待1S降低性能
                  */
-                if (msgList.size() < 50){
+                if (msgList.size() < 50) {
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e) {
@@ -264,27 +177,27 @@ public class PipeSlot {
         /**
          * 消费队列消息
          */
-        private void dealQueueMsg(){
-            while(true){
-                if (queue.size() > 0){
-                    List<byte[]> msgList = queue.poll() ;
+        private void dealQueueMsg() {
+            while (true) {
+                if (queue.size() > 0) {
+                    List<byte[]> msgList = queue.poll();
                     if (null == msgList) {
                         continue;
                     }
-                    dealMQMsg(msgList) ;
+                    dealMQMsg(msgList);
                     /**
                      * 默认从MQ主动获取是50条数据
                      * 如果数据条数小于50条数据时，则说明MQ数据比较少
                      * 等待1S降低性能
                      */
-                    if (msgList.size() < 50){
+                    if (msgList.size() < 50) {
                         try {
                             Thread.sleep(1000);
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
                     }
-                }else{
+                } else {
                     /**
                      * 没有数据则等待1S再处理
                      */
@@ -299,10 +212,11 @@ public class PipeSlot {
 
         /**
          * 处理MQ消息
-         * @param msgList
+         *
+         * @param msgList 消息列表
          */
-        private void dealMQMsg(List<byte[]> msgList){
-            if (null == msgList || msgList.size() == 0){
+        private void dealMQMsg(List<byte[]> msgList) {
+            if (null == msgList || msgList.size() == 0) {
                 return;
             }
             // 处理消息
@@ -319,7 +233,7 @@ public class PipeSlot {
                     // 获得解析器
                     IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
                     if (null == dataParser) {
-                        s_logger.error("Not support {}!!!", dp.getProtocol());
+                        s_logger.error("Not support: {}!!!", dp.getProtocol());
                         continue;
                     }
 
@@ -330,45 +244,36 @@ public class PipeSlot {
                         continue;
                     }
 
-                    // 获取消息中传过来的deviceId，如果VIN没有默认deviceId
-                    String vin = null;
-                    if (m.getMark().contains("|")) {
-                        vin = m.getMark().substring(m.getMark().indexOf("|") + 1);
+                    // 获取消息中传过来的deviceId
+                    String deviceId = m.getMark().split("\\|")[1];
+                    if (StringUtils.isBlank(deviceId)) {
+                        s_logger.error("Invalid data: no deviceId!", deviceId);
+                        continue;
                     }
 
                     // 从缓存提取VIN信息
-                    String cacheVin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH , vin);
-                    if(StringUtils.isNotBlank(cacheVin)) {
-                        vin = cacheVin;
+                    String vin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH, deviceId);
+                    if (StringUtils.isBlank(vin)) {
+                        s_logger.error("Invalid deviceId({}): no vin!", deviceId);
+                        continue;
                     }
 
-                    // 完善DataPack车辆VIN
-                    if (StringUtils.isNotBlank(vin)) {
-                        for (DataPackTarget dataPackTarget : dataPackTargetList) {
-                            // 设置VIN信息
-                            dataPackTarget.getDataPackObject().setVin(vin);
-
-                            // TODO 设置timestamp到id，云平台测试完毕后删除
-                            if(null != dp && null != dp.getGatherTime()) {
-                                dataPackTarget.getDataPackObject().setId("" + dp.getGatherTime().getTime());
-                            }
+                    // 完善DataPack信息，主要是车架号
+                    dataPackTargetList.forEach(object -> {
+                        if (null != object.getDataPackObject()) {
+                            object.getDataPackObject().setVin(vin);
                         }
-                    }
+                    });
 
-//                    // 记录日志
-//                    for (DataPackTarget t : dataPackTargetList) {
-//                        s_logger.info("--> {}", t.toString());
-//                    }
-
-                    // 保存数据
-                    saveDataPacks(dataPackTargetList, dp.getReceiveTime());
+                    // 永久保存数据到BigTable
+                    Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
 
                     // 分发数据
-                    dispatchDataPacks(dp, dataPackTargetList);
+                    dispatchDataPacks(dp, mapDataPackObjects);
 
                 } catch (Exception e) {
                     e.printStackTrace();
-                    s_logger.error("Deal with msg error, {}, \n{}, \n{}", new String(msg), ExceptionUtils.getMessage(e),e.getMessage());
+                    s_logger.error("Deal with msg error, {}, \n{}, \n{}", new String(msg), ExceptionUtils.getMessage(e), e.getMessage());
                 } finally {
                     if (null != dp) {
                         dp.freeBuf();
@@ -380,105 +285,54 @@ public class PipeSlot {
     }
 
     /**
-     * 从数据对象数据列表(同一个DataPack解出的，vin应该都相同，可能有的没有vin码)获取vin码，无vin码则返回 设备id
-     *
-     * @param dataPackTargetList 数据对象数据列表(同一个DataPack解出的)
-     * @return vin码
-     */
-    private String checkAndGetVin(List<DataPackTarget> dataPackTargetList) {
-        String vin = null;
-        Iterator<DataPackTarget> iterator = dataPackTargetList.iterator();
-
-        // 处理无vin的数据
-        while (iterator.hasNext()) {
-            DataPackObject dataPackObject = iterator.next().getDataPackObject();
-            String deviceId = dataPackObject.getDeviceId();
-            String vin0 = dataPackObject.getVin();
-            if (StringUtils.isBlank(vin0) && StringUtils.isBlank(deviceId)) {
-                s_logger.error("Invalid data: no vin or deviceId");
-                iterator.remove();
-                continue;
-            }
-
-            // 没有vin码时候,设备ID代替vin码
-            if (StringUtils.isBlank(vin0)) {
-                s_logger.debug("No vin: {}", dataPackObject);
-                vin = deviceId;
-            } else {
-                vin = vin0;
-                break;
-            }
-        }
-
-        return vin;
-    }
-
-    /**
-     * 处理数据
-     * 1.设置数据接收时间<br />
+     * 纠正检测时间和维护车辆状态缓存
+     * 1.设置网关接收时间<br />
      * 2.对采集时间字段为空或无效的数据进行处理<br>
      * 3.生成rowkey，返回 rowkey -> DataPackObject
      *
-     * @param dataPackTargetList 数据列表(同一个DataPack解出的)
-     * @param receiveTime        数据接收时间（gather服务器接收时间，非设备采集时间）
-     * @param vin                vin码
+     * @param dataPackTargetList 车辆数据列表(同一个DataPack解出的)
+     * @param receiveTime        网关接收时间（gather服务器接收时间，非设备检测时间）
+     * @param vin                车架号
      * @return 待保存的数据
      */
-    private Map<String, DataPackObject> treatDetectionAndGetDataPackObject(List<DataPackTarget> dataPackTargetList, Date receiveTime, String vin) {
-        // 初始化
-        Map<String, DataPackObject> dataForSave = new HashMap<>();
+    private Map<String, DataPackObject> checkDetectionTimeAndDealCachePool(List<DataPackTarget> dataPackTargetList, Date receiveTime, String vin) {
+        // 初始化返回对象
+        Map<String, DataPackObject> mapDataPackObjects = new HashMap<>();
 
-        // 处理检测日期
-        /**
-         * 对于无采集时间或采集时间为非法时间，做如下处理：<br />
-         * 1.该批数据（属于同一个包）含有位置数据 且位置数据带有合法采集时间，用位置数据的采集时间来重置所有包的采集时间；<br />
-         * 2.该批数据（属于同一个包）不含位置数据 或 位置数据不带有合法采集时间，用接收时间重置所有包的采集时间。
-         */
-        Date receiveTime0 = receiveTime;
+        // 生成rowKey和datapack之间的关系数据
         for (DataPackTarget target : dataPackTargetList) {
-            // 获取位置时间覆盖接收时间
-            if (target.getDataPackObject() instanceof DataPackPosition) {
-                DataPackPosition position = (DataPackPosition) target.getDataPackObject();
-                if (DataPackObjectUtils.isLegalDetectionDate(position.getPositionTime())) {
-                    receiveTime0 = position.getPositionTime();
-                    break;
-                }
+            // 1.设置网关接收时间
+            DataPackObject dataPackObject = target.getDataPackObject();
+            dataPackObject.setReceiveTime(receiveTime);
 
-            }
-        }
-
-        for (DataPackTarget target : dataPackTargetList) {
-            // 1.校正非法采集时间
-            DataPackObject packObject = target.getDataPackObject();
-            packObject.setReceiveTime(receiveTime);
-
-            // 2.采集时间被接收时间重置
-            String timeStr = null;
-            if (DataPackObjectUtils.checkAndResetIlllegalDetectionDate(packObject, receiveTime0)) {
-                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionTime()) + "N";// N表示设备未上传数据采集时间，系统自动加上采集时间
-            } else {
-                timeStr = DataPackObjectUtils.convertDetectionDateToString(packObject.getDetectionTime());
+            // 2.判断检测时间无效情况，如果无效使用网关接收时间
+            Date detectionTime = target.getDataPackObject().getDetectionTime();
+            String detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(detectionTime);
+            if (DataPackObjectUtil.isLegalDetectionDate(detectionTime)) {
+                // 使用网关接收时间
+                detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(receiveTime);
             }
 
-            // 3、保存
-            String dataType = DataPackObjectUtils.getDataType(packObject);// 数据类型
-            String rowKey = RowKeyUtil.makeRowKey(vin, dataType, timeStr);
-            dataForSave.put(rowKey, packObject);
+            // 3.创建rowkey和datapack关系
+            String dataType = DataPackObjectUtil.getDataType(dataPackObject);// 数据类型
+            String rowKey = RowKeyUtil.makeRowKey(vin, dataType, detectionTimeString);
+            mapDataPackObjects.put(rowKey, dataPackObject);
 
             // 4、监控车辆状态信息
-            operationCahche(packObject);
+            operationCachePool(dataPackObject);
         }
 
-        return dataForSave;
+        return mapDataPackObjects;
     }
 
     /**
      * 保存vin码
      *
-     * @param vin
+     * @param vin 车架号
      */
     protected void saveVin(String vin) {
         try {
+            // 保存车架号到HBase数据表
             _host.saveVin(vin);
         } catch (Exception e) {
             s_logger.error("Save vin error, vin={}, {}", vin, e.getMessage());
@@ -488,66 +342,93 @@ public class PipeSlot {
     /**
      * 保存数据
      *
-     * @param rowKey         bigtable主键列值
-     * @param dataPackObject 数据对象
-     * @param receiveTime    数据接收时间（gather服务器接收时间，非设备采集时间），二级索引用接收时间时间生成便于同步数据
+     * @param rowKey         行健
+     * @param dataPackObject 车辆数据
+     * @param receiveTime    网关接收时间
      */
     protected void saveDataPackObject(String rowKey, DataPackObject dataPackObject, Date receiveTime) {
+        // 打印日志
         s_logger.debug("saveDataPackObject: {}, {}", rowKey, dataPackObject);
+
         try {
-            _host.saveDataPackObject(rowKey, dataPackObject, receiveTime);
-//            saveToBigtableDataCount.incrementAndGet();
-            s_logger.debug("Save success: ", rowKey);
+            // 保存数据
+            _host.saveDataPackObject(rowKey, dataPackObject);
+            s_logger.debug("Save {} success!", rowKey);
+
         } catch (Exception e) {
             e.printStackTrace();
             s_logger.error("Save failed: {}, {}", rowKey, e.getMessage());
-//            saveToBigtableFailedDataCount.incrementAndGet();
         }
     }
 
     /**
      * 保存数据
      *
+     * @param vin                车架号
      * @param dataPackTargetList 数据列表(同一个DataPack解出的)
      * @param receiveTime        数据接收时间（gather服务器接收时间，非设备采集时间）
      */
-    private void saveDataPacks(List<DataPackTarget> dataPackTargetList, Date receiveTime) {
-        // 获取vin码
-        String vin = checkAndGetVin(dataPackTargetList);
-
+    private Map<String, DataPackObject> saveDataPacks(String vin, List<DataPackTarget> dataPackTargetList, Date receiveTime) {
         // 保存vin码
-        saveVin(vin);
-
-        // 处理采集时间,生成rowkey
-        Map<String, DataPackObject> dataForSave = treatDetectionAndGetDataPackObject(dataPackTargetList, receiveTime, vin);
-        for (Map.Entry<String, DataPackObject> data : dataForSave.entrySet()) {
-            // 保持数据到BigTable
-            saveDataPackObject(data.getKey(), data.getValue(), receiveTime);
+        if (StringUtils.isNotBlank(vin)) {
+            saveVin(vin);
         }
 
+        // 处理采集时间，生成rowKey
+        Map<String, DataPackObject> mapDataPackObjects = checkDetectionTimeAndDealCachePool(dataPackTargetList, receiveTime, vin);
+        mapDataPackObjects.forEach((key, value) -> {
+            // 保持数据到BigTable
+            saveDataPackObject(key, value, receiveTime);
+        });
+
+        return mapDataPackObjects;
     }
 
     /**
      * 分发数据包
      *
-     * @param dp                 原始数据包
-     * @param dataPackTargetList 数据列表(同一个DataPack解出的)
+     * @param dataPack        原始数据包
+     * @param dataPackObjects 车辆数据列表(同一个DataPack解出的)
      */
-    private void dispatchDataPacks(DataPack dp, List<DataPackTarget> dataPackTargetList) {
-        // 分发到国标
-        if (null != _host.getGbPushMQ()) {
-            IBigMQ gbPushMQ = _host.getGbPushMQ();
+    private void dispatchDataPacks(DataPack dataPack, Map<String, DataPackObject> dataPackObjects) {
+        // 分发到转存器
+        dataPackObjects.forEach((key, object) -> {
+            if (object instanceof DataPackLogIn) {
+                // 分发车辆登录数据
+                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
+            } else if (object instanceof DataPackRsaKeyRequest) {
+                // 分发公钥更新请求数据
+                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
+            } else if (object instanceof DataPackRsaKeyCompleted) {
+                // 分发公钥更新完成数据
+                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
+            }
+        });
+
+        // 分发到国标地标平台
+        if (null != _host.getGbPushMQ() || null != _host.getDbPushMQ()) {
             try {
-                MQMsg mqMsg = new MQMsg(dp.getMark(), dp.serializeToBytes());
-                byte[] bytes = GsonFactory.newInstance().createGson().toJson(mqMsg).getBytes();
-                gbPushMQ.post(_host.getGbPushTopic(), bytes);
+                // 构建消息
+                MQMsg mqMsg = new MQMsg(dataPack.getMark(), dataPack.serializeToBytes());
+                byte[] dataBytes = GsonFactory.newInstance().createGson().toJson(mqMsg).getBytes(Constants.DEFAULT_CHARSET);
+
+                // 分发到国标平台
+                if (null != _host.getGbPushMQ()) {
+                    _host.getGbPushMQ().post(_host.getGbPushTopic(), dataBytes);
+                }
+
+                // 分发到地标
+                if (null != _host.getDbPushMQ()) {
+                    _host.getDbPushMQ().post(_host.getDbPushTopic(), dataBytes);
+                }
+
             } catch (UnsupportedEncodingException e) {
-                s_logger.debug("Unsupported encoding utf-8.");
+                s_logger.debug("Unsupported encoding {}.", Constants.DEFAULT_CHARSET);
             }
         }
-
-        // TODO 分发到地标
     }
 
     /**
@@ -565,14 +446,14 @@ public class PipeSlot {
     }
 
     /**
-     * 数据处理存入缓存
+     * 处理数据缓存关系
      *
-     * @param packObject datapack对象
+     * @param dataPackObject datapack对象
      */
-    private void operationCahche(DataPackObject packObject) {
+    private void operationCachePool(DataPackObject dataPackObject) {
         // 查询设备号和VIN码
-        String deviceId = packObject.getDeviceId();
-        String vin = packObject.getVin();
+        String deviceId = dataPackObject.getDeviceId();
+        String vin = dataPackObject.getVin();
 
         // 根据设备号获取VIN码 <Redis中获取>
         if (null == vin) {
@@ -588,34 +469,34 @@ public class PipeSlot {
          * set(vin) = set(device-heartbeat:vin) - set(device-online:vin) - set(device-offline:vin)
          */
         int type = Constants.HeartbeatType.NORMAL;
-        Date time = packObject.getDetectionTime();
+        Date time = dataPackObject.getReceiveTime();
         String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
-        if (packObject instanceof DataPackLogIn || packObject instanceof DataPackLogOut) {
-            //VIN与设备号建立关系 （永久）
-            cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_VIN_HASH , vin, deviceId);
+        if (dataPackObject instanceof DataPackLogIn || dataPackObject instanceof DataPackLogOut) {
+            // VIN与设备号建立关系 （永久）
+            cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_VIN_HASH, vin, deviceId);
 
-            //设备号与VIN码建立关系 （永久）
-            cacheManager.hset(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH , deviceId, vin);
+            // 设备号与VIN码建立关系 （永久）
+            cacheManager.hset(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH, deviceId, vin);
 
             // 判断登陆类型
-            Integer loginType = null ;
+            Integer loginType = null;
 
-            //离线车辆关系 （永久） 在线与离线互斥
-            if (packObject instanceof DataPackLogIn){
-                DataPackLogIn dataPackLogIn = (DataPackLogIn) packObject;
+            // 离线车辆关系 （永久） 在线与离线互斥
+            if (dataPackObject instanceof DataPackLogIn) {
+                DataPackLogIn dataPackLogIn = (DataPackLogIn) dataPackObject;
                 loginType = dataPackLogIn.getLoginType();
-            }else if(packObject instanceof DataPackLogOut){
-                DataPackLogOut dataPackLogOut = (DataPackLogOut) packObject;
+            } else if (dataPackObject instanceof DataPackLogOut) {
+                DataPackLogOut dataPackLogOut = (DataPackLogOut) dataPackObject;
                 loginType = dataPackLogOut.getLoginType();
             }
 
             if (null != loginType) {
                 type = loginType == 0 ? Constants.HeartbeatType.LOGIN : Constants.HeartbeatType.LOGOUT;
                 if (type == Constants.HeartbeatType.LOGIN) {
-                    cacheManager.hdelete(Constants.CacheNamespaceKey.CACHE_VEHICLE_OFFLINE_HASH , vin);
+                    cacheManager.hdelete(Constants.CacheNamespaceKey.CACHE_VEHICLE_OFFLINE_HASH, vin);
                 } else if (type == Constants.HeartbeatType.LOGOUT) {
                     //车辆离线
-                    cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_OFFLINE_HASH , vin, timeStr);
+                    cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_OFFLINE_HASH, vin, timeStr);
                     cacheManager.delete(Constants.CacheNamespaceKey.CACHE_NS_VEHICLE_ONLINE + vin);
                 }
             }
@@ -626,12 +507,12 @@ public class PipeSlot {
         map.put(Constants.HeartbeatDataMapKey.TYPE, type);
         map.put(Constants.HeartbeatDataMapKey.TIME, timeStr);
 
-        if (!(packObject instanceof DataPackLogOut) || !(packObject instanceof DataPackActivation)){
+        if (!(dataPackObject instanceof DataPackLogOut) || !(dataPackObject instanceof DataPackActivation)) {
             //在线车辆关系 （30S）
             cacheManager.set(Constants.CacheNamespaceKey.CACHE_NS_VEHICLE_ONLINE + vin, timeStr, Constants.DEFAULT_HEARTBEAT_TIMEOUT);
         }
 
         //连线过的车辆关系 （永久）-- 所有数据均为心跳数据
-        cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_HEARTBEAT_HASH , vin, GsonFactory.newInstance().createGson().toJson(map));
+        cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_HEARTBEAT_HASH, vin, GsonFactory.newInstance().createGson().toJson(map));
     }
 }

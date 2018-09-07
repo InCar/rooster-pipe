@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -57,17 +56,17 @@ public class PipeHost {
     /**
      * 接收数据的Topic
      */
-    private String receiveDataTopic ;
+    private String receiveDataTopic;
 
     /**
      * 推送数据到国标的Topic
      */
-    private String gbPushTopic ;
+    private String gbPushTopic;
 
     /**
      * 推送数据到地标的Topic
      */
-    private String dbPushTopic ;
+    private String dbPushTopic;
 
     /**
      * bigtable的操作接口
@@ -135,19 +134,18 @@ public class PipeHost {
      * @return
      */
     public List<byte[]> batchReceive(int size) {
-        return receiveDataMQ.batchReceive(receiveDataTopic,size);
+        return receiveDataMQ.batchReceive(receiveDataTopic, size);
     }
 
     /**
      * 保存数据
      *
-     * @param rowKey      行健
-     * @param data        数据
-     * @param receiveTime 二级索引用接收时间时间生成便于同步数据
+     * @param rowKey 行健
+     * @param data   车辆数据
      * @throws Exception
      */
-    public void saveDataPackObject(String rowKey, DataPackObject data, Date receiveTime) throws Exception {
-        bigTable.saveDataPackObject(rowKey, data, receiveTime);
+    public void saveDataPackObject(String rowKey, DataPackObject data) throws Exception {
+        bigTable.saveDataPackObject(rowKey, data);
     }
 
     /**
