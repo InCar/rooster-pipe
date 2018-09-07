@@ -405,6 +405,14 @@ public class PipeSlot {
                 // 分发公钥更新完成数据
                 this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
+            } else if (object instanceof DataPackAlarm) {
+                // 分发车辆报警数据
+                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
+            } else if (object instanceof DataPackFault) {
+                // 分发车辆故障数据
+                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
             }
         });
 
