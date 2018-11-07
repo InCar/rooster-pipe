@@ -309,6 +309,7 @@ public class PipeSlot {
             Date detectionTime = target.getDataPackObject().getDetectionTime();
             if (DataPackObjectUtil.isLegalDetectionDate(detectionTime)) {
                 // 判断依据：比当前时间晚1个月或者早30分钟视为无效数据，主动丢弃
+                s_logger.info("Legal detection date data: {}", DataPackObjectUtil.toJson(target.getDataPackObject()));
                 continue;
             }
 
