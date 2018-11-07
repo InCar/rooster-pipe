@@ -305,15 +305,15 @@ public class PipeSlot {
             DataPackObject dataPackObject = target.getDataPackObject();
             dataPackObject.setReceiveTime(receiveTime);
 
-            // 2.判断检测时间无效情况，如果无效使用网关接收时间
+            // 2.判断检测时间无效情况
             Date detectionTime = target.getDataPackObject().getDetectionTime();
-            String detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(detectionTime);
             if (DataPackObjectUtil.isLegalDetectionDate(detectionTime)) {
-                // 使用网关接收时间
-                detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(receiveTime);
+                // 判断依据：比当前时间晚1个月或者早30分钟视为无效数据，主动丢弃
+                continue;
             }
 
             // 3.创建rowkey和datapack关系
+            String detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(detectionTime);
             String dataType = DataPackObjectUtil.getDataType(dataPackObject);// 数据类型
             String rowKey = RowKeyUtil.makeRowKey(vin, dataType, detectionTimeString);
             mapDataPackObjects.put(rowKey, dataPackObject);
