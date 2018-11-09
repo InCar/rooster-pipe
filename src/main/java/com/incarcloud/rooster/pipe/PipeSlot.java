@@ -414,6 +414,10 @@ public class PipeSlot {
                 // 分发车辆故障数据
                 this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
+            } else if(object instanceof DataPackOtaCompleted) {
+                // 分发OTA升级完成数据
+                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
             }
         });
 
