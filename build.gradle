@@ -1,5 +1,5 @@
 group 'com.incarcloud'
-version '2.3.3-SNAPSHOT'
+version '2.3.4-SNAPSHOT'
 
 allprojects {
     apply plugin: 'java'
@@ -9,11 +9,11 @@ allprojects {
     targetCompatibility = JavaVersion.VERSION_1_8
 
     ext {
-        MAVEN_URL_PUTLIC = 'http://121.40.157.200:8044/content/groups/public/'
-        MAVEN_URL_RELEASE = 'http://121.40.157.200:8044/content/repositories/releases/'
-        MAVEN_URL_SNAPSHOTS = 'http://121.40.157.200:8044/content/repositories/snapshots/'
+        MAVEN_URL_PUTLIC = 'https://repository.incarcloud.com/content/groups/public/'
+        MAVEN_URL_RELEASE = 'https://repository.incarcloud.com/content/repositories/releases/'
+        MAVEN_URL_SNAPSHOTS = 'https://repository.incarcloud.com/content/repositories/snapshots/'
         MAVEN_AUTH_USERNAME = 'deployment'
-        MAVEN_AUTH_PASSWORD = 'AskForAdminIfUpload'
+        MAVEN_AUTH_PASSWORD = 'deploy123456'
     }
 
     repositories {
@@ -28,7 +28,7 @@ allprojects {
 
     buildscript {
         repositories {
-            maven { url "http://121.40.157.200:8044/content/groups/public/" }
+            maven { url "https://repository.incarcloud.com/content/groups/public/" }
         }
     }
 
