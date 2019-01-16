@@ -1,5 +1,5 @@
 group 'com.incarcloud'
-version '2.4.1-SNAPSHOT'
+version '2.4.2-SNAPSHOT'
 
 allprojects {
     apply plugin: 'java'

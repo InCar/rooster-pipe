@@ -414,10 +414,20 @@ public class PipeSlot {
                 // 分发车辆故障数据
                 this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
-            } else if(object instanceof DataPackOtaCompleted) {
+            } else if (object instanceof DataPackOtaCompleted) {
                 // 分发OTA升级完成数据
                 this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
+            } else if (object instanceof DataPackPosition) {
+                // 缓存车辆最新位置数据，方便聚合点计算
+                DataPackPosition dataPackPosition = (DataPackPosition) dataPack;
+                if (null != dataPackPosition && null != dataPackPosition.getLongitude() && null != dataPackPosition.getLatitude()) {
+                    // 判断是否为正常的位置数据
+                    if (0 < dataPackPosition.getLongitude() && 0 < dataPackPosition.getLatitude()) {
+                        // GEO结构：vin = (longitude, latitude)
+                        this.cacheManager.gset(Constants.CacheNamespaceKey.CACHE_VEHICLE_GEO, dataPackPosition.getVin(), dataPackPosition.getLongitude(), dataPackPosition.getLatitude());
+                    }
+                }
             }
         });
 
