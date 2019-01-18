@@ -269,7 +269,10 @@ public class PipeSlot {
                     Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
 
                     // 分发数据
-                    dispatchDataPacks(dp, mapDataPackObjects);
+                    if(PipeHost.DEFAULT_HOST_ROLE.equals(_host.getRole())) {
+                        // 只有主节点支持数据分发
+                        dispatchDataPacks(dp, mapDataPackObjects);
+                    }
 
                 } catch (Exception e) {
                     e.printStackTrace();

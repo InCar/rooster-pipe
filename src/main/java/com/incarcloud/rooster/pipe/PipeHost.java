@@ -23,6 +23,11 @@ public class PipeHost {
      */
     private static Logger s_logger = LoggerFactory.getLogger(PipeHost.class);
 
+    /**
+     * 默认主机角色
+     */
+    public static String DEFAULT_HOST_ROLE = "master";
+
     static {
         // 加载com.incarcloud.rooster.datapack包下的所有类，使得解析器注册到DataParserManager
         DataParserManager.loadClassOfSamePackage();
@@ -34,6 +39,11 @@ public class PipeHost {
     private String name;
 
     /**
+     * 主机角色
+     */
+    private String role = DEFAULT_HOST_ROLE;
+
+   /**
      * 采集槽列表
      */
     private ArrayList<PipeSlot> _slots = new ArrayList<>();
@@ -200,6 +210,24 @@ public class PipeHost {
      */
     public String getName() {
         return name;
+    }
+
+    /**
+     * 获取主机角色
+     *
+     * @return
+     */
+    public String getRole() {
+        return role;
+    }
+
+    /**
+     * 设置主机角色
+     *
+     * @param role 角色名称
+     */
+    public void setRole(String role) {
+        this.role = role;
     }
 
     /**
