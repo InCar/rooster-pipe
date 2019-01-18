@@ -396,27 +396,27 @@ public class PipeSlot {
         dataPackObjects.forEach((key, object) -> {
             if (object instanceof DataPackLogIn) {
                 // 分发车辆登录数据
-                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
             } else if (object instanceof DataPackRsaKeyRequest) {
                 // 分发公钥更新请求数据
-                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
             } else if (object instanceof DataPackRsaKeyCompleted) {
                 // 分发公钥更新完成数据
-                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
             } else if (object instanceof DataPackAlarm) {
                 // 分发车辆报警数据
-                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
             } else if (object instanceof DataPackFault) {
                 // 分发车辆故障数据
-                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
             } else if (object instanceof DataPackOtaCompleted) {
                 // 分发OTA升级完成数据
-                this.cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
             } else if (object instanceof DataPackPosition) {
                 // 缓存车辆最新位置数据，方便聚合点计算
@@ -425,7 +425,9 @@ public class PipeSlot {
                     // 判断是否为正常的位置数据
                     if (0 < dataPackPosition.getLongitude() && 0 < dataPackPosition.getLatitude()) {
                         // GEO结构：vin = (longitude, latitude)
-                        this.cacheManager.gset(Constants.CacheNamespaceKey.CACHE_VEHICLE_GEO, dataPackPosition.getVin(), dataPackPosition.getLongitude(), dataPackPosition.getLatitude());
+                        cacheManager.gset(Constants.CacheNamespaceKey.CACHE_VEHICLE_GEO, dataPackPosition.getVin(), dataPackPosition.getLongitude(), dataPackPosition.getLatitude());
+                        // GEO扩展信息：vin = json(DataPackPosition)
+                        cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_GEO_EXTEND_HASH, dataPackPosition.getVin(), GsonFactory.newInstance().createGson().toJson(dataPackPosition));
                     }
                 }
             }
