@@ -427,7 +427,7 @@ public class PipeSlot {
                         // GEO结构：vin = (longitude, latitude)
                         cacheManager.gset(Constants.CacheNamespaceKey.CACHE_VEHICLE_GEO, dataPackPosition.getVin(), dataPackPosition.getLongitude(), dataPackPosition.getLatitude());
                         // GEO扩展信息：vin = json(DataPackPosition)
-                        cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_GEO, dataPackPosition.getVin(), GsonFactory.newInstance().createGson().toJson(dataPackPosition));
+                        cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_GEO_EXTEND_HASH, dataPackPosition.getVin(), GsonFactory.newInstance().createGson().toJson(dataPackPosition));
                     }
                 }
             }
