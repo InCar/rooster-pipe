@@ -423,7 +423,7 @@ public class PipeSlot {
 
             } else if (object instanceof DataPackPosition) {
                 // 缓存车辆最新位置数据，方便聚合点计算
-                DataPackPosition dataPackPosition = (DataPackPosition) dataPack;
+                DataPackPosition dataPackPosition = (DataPackPosition) object;
                 if (null != dataPackPosition && null != dataPackPosition.getLongitude() && null != dataPackPosition.getLatitude()) {
                     // 判断是否为正常的位置数据
                     if (0 < dataPackPosition.getLongitude() && 0 < dataPackPosition.getLatitude()) {
