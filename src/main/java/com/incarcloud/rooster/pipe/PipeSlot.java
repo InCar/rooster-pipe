@@ -421,6 +421,14 @@ public class PipeSlot {
                 // 分发OTA升级完成数据
                 cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
+            } else if(object instanceof DataPackSettingCompleted) {
+                // 分发T-BOX参数设置完成数据
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
+            } else if(object instanceof DataPackAlarmSettingCompleted) {
+                // 分发T-BOX报警参数设置完成数据
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
             } else if (object instanceof DataPackPosition) {
                 // 缓存车辆最新位置数据，方便聚合点计算
                 DataPackPosition dataPackPosition = (DataPackPosition) object;
