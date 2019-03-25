@@ -269,7 +269,7 @@ public class PipeSlot {
                     Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
 
                     // 分发数据
-                    if(PipeHost.DEFAULT_HOST_ROLE.equals(_host.getRole())) {
+                    if (PipeHost.DEFAULT_HOST_ROLE.equals(_host.getRole())) {
                         // 只有主节点支持数据分发
                         dispatchDataPacks(dp, mapDataPackObjects);
                     }
@@ -330,20 +330,6 @@ public class PipeSlot {
     }
 
     /**
-     * 保存vin码
-     *
-     * @param vin 车架号
-     */
-    protected void saveVin(String vin) {
-        try {
-            // 保存车架号到HBase数据表
-            _host.saveVin(vin);
-        } catch (Exception e) {
-            s_logger.error("Save vin error, vin={}, {}", vin, e.getMessage());
-        }
-    }
-
-    /**
      * 保存数据
      *
      * @param rowKey         行健
@@ -373,11 +359,6 @@ public class PipeSlot {
      * @param receiveTime        数据接收时间（gather服务器接收时间，非设备采集时间）
      */
     private Map<String, DataPackObject> saveDataPacks(String vin, List<DataPackTarget> dataPackTargetList, Date receiveTime) {
-        // 保存vin码
-        if (StringUtils.isNotBlank(vin)) {
-            saveVin(vin);
-        }
-
         // 处理采集时间，生成rowKey
         Map<String, DataPackObject> mapDataPackObjects = checkDetectionTimeAndDealCachePool(dataPackTargetList, receiveTime, vin);
         mapDataPackObjects.forEach((key, value) -> {
@@ -421,11 +402,11 @@ public class PipeSlot {
                 // 分发OTA升级完成数据
                 cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
-            } else if(object instanceof DataPackSettingCompleted) {
+            } else if (object instanceof DataPackSettingCompleted) {
                 // 分发T-BOX参数设置完成数据
                 cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
-            } else if(object instanceof DataPackAlarmSettingCompleted) {
+            } else if (object instanceof DataPackAlarmSettingCompleted) {
                 // 分发T-BOX报警参数设置完成数据
                 cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 

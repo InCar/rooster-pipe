@@ -43,7 +43,7 @@ public class PipeHost {
      */
     private String role = DEFAULT_HOST_ROLE;
 
-   /**
+    /**
      * 采集槽列表
      */
     private ArrayList<PipeSlot> _slots = new ArrayList<>();
@@ -156,15 +156,6 @@ public class PipeHost {
      */
     public void saveDataPackObject(String rowKey, DataPackObject data) throws Exception {
         bigTable.saveDataPackObject(rowKey, data);
-    }
-
-    /**
-     * 保存vin码
-     *
-     * @param vin
-     */
-    public void saveVin(String vin) throws Exception {
-        bigTable.saveVin(vin);
     }
 
     /**
