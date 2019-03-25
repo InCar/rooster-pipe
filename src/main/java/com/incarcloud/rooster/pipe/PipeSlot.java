@@ -415,7 +415,7 @@ public class PipeSlot {
                 DataPackPosition dataPackPosition = (DataPackPosition) object;
                 if (null != dataPackPosition && null != dataPackPosition.getLongitude() && null != dataPackPosition.getLatitude()) {
                     // 判断是否为正常的位置数据
-                    if (0 < dataPackPosition.getLongitude() && 0 < dataPackPosition.getLatitude()) {
+                    if (!(0 == dataPackPosition.getLongitude() && 0 == dataPackPosition.getLatitude())) {
                         // GEO结构：vin = (longitude, latitude)
                         cacheManager.gset(Constants.CacheNamespaceKey.CACHE_VEHICLE_GEO, dataPackPosition.getVin(), dataPackPosition.getLongitude(), dataPackPosition.getLatitude());
                         // GEO扩展信息：vin = json(DataPackPosition)
