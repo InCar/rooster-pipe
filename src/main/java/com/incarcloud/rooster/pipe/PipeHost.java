@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author Xiong Guanghua
@@ -154,8 +155,19 @@ public class PipeHost {
      * @param data   车辆数据
      * @throws Exception
      */
+    @Deprecated
     public void saveDataPackObject(String rowKey, DataPackObject data) throws Exception {
         bigTable.saveDataPackObject(rowKey, data);
+    }
+
+    /**
+     * 批量保存数据
+     *
+     * @param data 车辆数据集合
+     * @throws Exception
+     */
+    public void batchSaveDataPackObject(Map<String, DataPackObject> data) throws Exception {
+        bigTable.batchSaveDataPackObjects(data);
     }
 
     /**
