@@ -219,6 +219,10 @@ public class PipeSlot {
             if (null == msgList || msgList.size() == 0) {
                 return;
             }
+
+            // 批量保存数据集合
+            Map<String, DataPackObject> mapSaveDataPackObjects = new HashMap<>();
+
             // 处理消息
             for (byte[] msg : msgList) {
                 DataPack dp = null;
@@ -265,8 +269,11 @@ public class PipeSlot {
                         }
                     });
 
-                    // 永久保存数据到BigTable
-                    Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
+                    // 处理采集时间，生成rowKey
+                    Map<String, DataPackObject> mapDataPackObjects = checkDetectionTimeAndDealCachePool(dataPackTargetList, dp.getReceiveTime(), vin);
+
+                    // 添加到批量保存数据集合
+                    mapSaveDataPackObjects.putAll(mapDataPackObjects);
 
                     // 分发数据
                     if (PipeHost.DEFAULT_HOST_ROLE.equals(_host.getRole())) {
@@ -281,6 +288,16 @@ public class PipeSlot {
                     if (null != dp) {
                         dp.freeBuf();
                     }
+                }
+            }
+
+            // 批量保存数据到HBase
+            if (null != mapSaveDataPackObjects && 0 < mapSaveDataPackObjects.size()) {
+                try {
+                    // 执行批量操作
+                    _host.batchSaveDataPackObject(mapSaveDataPackObjects);
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -358,6 +375,7 @@ public class PipeSlot {
      * @param dataPackTargetList 数据列表(同一个DataPack解出的)
      * @param receiveTime        数据接收时间（gather服务器接收时间，非设备采集时间）
      */
+    @Deprecated
     private Map<String, DataPackObject> saveDataPacks(String vin, List<DataPackTarget> dataPackTargetList, Date receiveTime) {
         // 处理采集时间，生成rowKey
         Map<String, DataPackObject> mapDataPackObjects = checkDetectionTimeAndDealCachePool(dataPackTargetList, receiveTime, vin);
