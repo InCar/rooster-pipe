@@ -121,8 +121,8 @@ public class PipeSlot {
         @Override
         public void run() {
 
-            // 开启线程消费队列消息 DEAL_QUEUE_THREAD * 4 = 20
-            for (int i = 0; i < DEAL_QUEUE_THREAD * 4; i++) {
+            // 开启线程消费队列消息 DEAL_QUEUE_THREAD * 2 = 100
+            for (int i = 0; i < DEAL_QUEUE_THREAD * 2; i++) {
                 new Thread(() -> dealQueueMsg()).start();
             }
 
