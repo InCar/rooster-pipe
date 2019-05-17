@@ -16,7 +16,8 @@ import org.slf4j.LoggerFactory;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author Xiong Guanghua
@@ -73,9 +74,31 @@ public class PipeSlot {
     }
 
     /**
+     * 统计数据条数
+     */
+    private AtomicLong totalDatas = new AtomicLong(0) ;
+    /**
+     * 统计花费时间
+     */
+    private AtomicLong userTimes = new AtomicLong(0) ;
+
+    /**
+     * 定时任务
+     */
+    private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(1);
+
+    /**
      * 启动
      */
     public void start() {
+
+        // 数据监控
+        executorService.scheduleAtFixedRate(()->{
+            if (totalDatas.get() != 0) {
+                s_logger.info("storage avg duration --> : {}", userTimes.get() / totalDatas.get());
+            }
+        },10,10, TimeUnit.SECONDS) ;
+
         s_logger.info(name + " start receive message!!!");
         isRunning = true;
 
@@ -143,8 +166,11 @@ public class PipeSlot {
                     continue;
                 }
 
-                // 如果队列消息大于2000没有消息，则等待，一般情况不会达到
-                if (queue.size() > 2000) {
+                // 存放无边界消息队列
+                queue.add(msgList);
+
+                // 如果队列消息大于5000没有消息，则等待，一般情况不会达到
+                if (queue.size() > 5000) {
                     s_logger.info("queue msg accumulation, waiting 1s ...");
                     try {
                         Thread.sleep(1000);
@@ -153,21 +179,20 @@ public class PipeSlot {
                     }
                 }
 
-                // 存放无边界消息队列
-                queue.add(msgList);
-
-                /**
-                 * 默认从MQ主动获取是50条数据
-                 * 如果数据条数小于50条数据时，则说明MQ数据比较少
-                 * 等待1S降低性能
-                 */
-                if (msgList.size() < 50) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
+//                /**
+//                 * 默认从MQ主动获取是50条数据
+//                 * 如果数据条数小于50条数据时，则说明MQ数据比较少
+//                 * 等待1S降低性能
+//                 */
+//                 多线程取数据时，存在取出小于50条数据的情况
+//                if (msgList.size() < 50) {
+//                    try {
+//                        s_logger.info("data too title, wait for 1s");
+//                        Thread.sleep(1000);
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+//                }
             }
 
             // 停止后释放连接
@@ -225,6 +250,7 @@ public class PipeSlot {
                 DataPack dp = null;
 
                 try {
+                    long start = System.currentTimeMillis() ;
                     // string转到datapack
                     String json = new String(msg);
                     MQMsg m = GsonFactory.newInstance().createGson().fromJson(json, MQMsg.class);
@@ -268,6 +294,8 @@ public class PipeSlot {
 
                     // 永久保存数据到BigTable
                     Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
+
+                    userTimes.addAndGet((System.currentTimeMillis()-start)) ;
 
                     // 分发数据
                     if (PipeHost.DEFAULT_HOST_ROLE.equals(_host.getRole())) {
@@ -365,6 +393,8 @@ public class PipeSlot {
         mapDataPackObjects.forEach((key, value) -> {
             // 保持数据到BigTable
             saveDataPackObject(key, value, receiveTime);
+            //数据+1
+            totalDatas.addAndGet(1) ;
         });
 
         return mapDataPackObjects;
