@@ -16,7 +16,10 @@ import org.slf4j.LoggerFactory;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -178,21 +181,6 @@ public class PipeSlot {
                         e.printStackTrace();
                     }
                 }
-
-//                /**
-//                 * 默认从MQ主动获取是50条数据
-//                 * 如果数据条数小于50条数据时，则说明MQ数据比较少
-//                 * 等待1S降低性能
-//                 */
-//                 多线程取数据时，存在取出小于50条数据的情况
-//                if (msgList.size() < 50) {
-//                    try {
-//                        s_logger.info("data too title, wait for 1s");
-//                        Thread.sleep(1000);
-//                    } catch (InterruptedException e) {
-//                        e.printStackTrace();
-//                    }
-//                }
             }
 
             // 停止后释放连接
@@ -210,18 +198,6 @@ public class PipeSlot {
                         continue;
                     }
                     dealMQMsg(msgList);
-                    /**
-                     * 默认从MQ主动获取是50条数据
-                     * 如果数据条数小于50条数据时，则说明MQ数据比较少
-                     * 等待1S降低性能
-                     */
-                    if (msgList.size() < 50) {
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    }
                 } else {
                     /**
                      * 没有数据则等待1S再处理
@@ -288,9 +264,11 @@ public class PipeSlot {
                     // 完善DataPack信息，主要是车架号
                     dataPackTargetList.forEach(object -> {
                         if (null != object.getDataPackObject()) {
+                            // 完善车架号
                             object.getDataPackObject().setVin(vin);
                         }
                     });
+
 
                     // 永久保存数据到BigTable
                     Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
