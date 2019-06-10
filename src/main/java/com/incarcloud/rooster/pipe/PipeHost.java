@@ -155,7 +155,6 @@ public class PipeHost {
      * @param data   车辆数据
      * @throws Exception
      */
-    @Deprecated
     public void saveDataPackObject(String rowKey, DataPackObject data) throws Exception {
         bigTable.saveDataPackObject(rowKey, data);
     }
