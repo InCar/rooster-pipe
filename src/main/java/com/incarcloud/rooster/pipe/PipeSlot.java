@@ -538,7 +538,8 @@ public class PipeSlot {
         int type = Constants.HeartbeatType.NORMAL;
         Date time = dataPackObject.getReceiveTime();
 
-        String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
+//        String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
+        String timeStr = DateFormatUtils.format(time, "yyyy-MM-dd HH:mm:ss");
         if (dataPackObject instanceof DataPackLogIn || dataPackObject instanceof DataPackLogOut) {
             // VIN与设备号建立关系 （永久）
             cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_VIN_HASH, vin, deviceId);
