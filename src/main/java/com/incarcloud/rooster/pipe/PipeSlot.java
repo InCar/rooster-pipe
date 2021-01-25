@@ -244,6 +244,12 @@ public class PipeSlot {
                     dp = DataPack.deserializeFromBytes(m.getData());
                     s_logger.debug("DataPack: {}", dp.toString());
 
+                    // 获取报文类型, 打印激活报文日志
+                    boolean isActivateData = isActivateData(dp.getDataBytes());
+                    if (isActivateData) {
+                        activeLogger.info("[{}] Pipe receive active bytes:{}", PipeSlot.class.getSimpleName(), ByteBufUtil.hexDump(dp.getDataBytes()));
+                    }
+
                     // 获得解析器
                     IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
                     if (null == dataParser) {
@@ -251,19 +257,11 @@ public class PipeSlot {
                         continue;
                     }
 
-                    // 获取报文类型, 打印激活报文日志
-                    ByteBuf buffer = Unpooled.wrappedBuffer(dp.getDataBytes());
-                    int packType = dataParser.getPackType(buffer);
-                    ReferenceCountUtil.release(buffer);
-                    if (Constants.PackType.ACTIVATE == packType) {
-                        activeLogger.info("[{}] Pipe receive active bytes:{}", PipeSlot.class.getSimpleName(), ByteBufUtil.hexDump(buffer));
-                    }
-
                     // 调用解析器解析完整报文
                     List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);// 同一个DataPack解出的数据列表
                     if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
                         s_logger.info("extractBody: null, dataPackTargetList: {}, DataPack: {}", m, dp);
-                        if (Constants.PackType.ACTIVATE == packType) {
+                        if (isActivateData) {
                             activeLogger.info("[{}] extractBody: null, dataPackTargetList: {}, DataPack: {}", PipeSlot.class.getSimpleName(), m, dp);
                         }
                         continue;
@@ -273,7 +271,7 @@ public class PipeSlot {
                     String deviceId = m.getMark().split("\\|")[1];
                     if (StringUtils.isBlank(deviceId)) {
                         s_logger.error("Invalid data: no deviceId!", deviceId);
-                        if (Constants.PackType.ACTIVATE == packType) {
+                        if (isActivateData) {
                             activeLogger.error("[{}] Invalid data: no deviceId:[{}]", PipeSlot.class.getSimpleName(), deviceId);
                         }
                         continue;
@@ -283,7 +281,7 @@ public class PipeSlot {
                     String vin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH, deviceId);
                     if (StringUtils.isBlank(vin)) {
                         s_logger.error("Invalid deviceId({}): no vin!", deviceId);
-                        if (Constants.PackType.ACTIVATE == packType) {
+                        if (isActivateData) {
                             activeLogger.error("[{}] Invalid deviceId({}): no vin!", PipeSlot.class.getSimpleName(), deviceId);
                         }
                         continue;
@@ -359,7 +357,7 @@ public class PipeSlot {
             String detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(detectionTime);
             String rowKey = RowKeyUtil.makeRowKey(vin, dataType, detectionTimeString);
             if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
-                activeLogger.info("[{}] active data rowKey: {}", PipeSlot.class.getSimpleName(), rowKey);
+                activeLogger.info("[{}] Active data rowKey: {}", PipeSlot.class.getSimpleName(), rowKey);
             }
             mapDataPackObjects.put(rowKey, dataPackObject);
 
@@ -583,5 +581,17 @@ public class PipeSlot {
 
         //连线过的车辆关系 （永久）-- 所有数据均为心跳数据
         cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_HEARTBEAT_HASH, vin, GsonFactory.newInstance().createGson().toJson(map));
+    }
+
+    /**
+     * 判断是否是激活报文
+     * @param dataPackBytes
+     * @return
+     */
+    private boolean isActivateData(byte[] dataPackBytes) {
+        if (null != dataPackBytes && dataPackBytes.length > 4 && (dataPackBytes[4] & 0xFF) == 0x12) {
+            return true;
+        }
+        return false;
     }
 }
