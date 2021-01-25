@@ -8,8 +8,14 @@ import com.incarcloud.rooster.share.Constants;
 import com.incarcloud.rooster.util.DataPackObjectUtil;
 import com.incarcloud.rooster.util.GsonFactory;
 import com.incarcloud.rooster.util.RowKeyUtil;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
+import io.netty.util.ReferenceCountUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.commons.lang3.time.DateFormatUtils;
+import org.apache.commons.lang3.time.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +39,11 @@ public class PipeSlot {
      * Logger
      */
     private static Logger s_logger = LoggerFactory.getLogger(PipeSlot.class);
+
+    /**
+     * 激活日志
+     */
+    private static Logger activeLogger = LoggerFactory.getLogger("activeLogger");
 
     /**
      * 一批次接受消息的数量
@@ -233,6 +244,12 @@ public class PipeSlot {
                     dp = DataPack.deserializeFromBytes(m.getData());
                     s_logger.debug("DataPack: {}", dp.toString());
 
+                    // 获取报文类型, 打印激活报文日志
+                    boolean isActivateData = isActivateData(dp.getDataBytes());
+                    if (isActivateData) {
+                        activeLogger.info("[{}] Pipe receive active bytes:{}", PipeSlot.class.getSimpleName(), ByteBufUtil.hexDump(dp.getDataBytes()));
+                    }
+
                     // 获得解析器
                     IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
                     if (null == dataParser) {
@@ -244,6 +261,9 @@ public class PipeSlot {
                     List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);// 同一个DataPack解出的数据列表
                     if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
                         s_logger.info("extractBody: null, dataPackTargetList: {}, DataPack: {}", m, dp);
+                        if (isActivateData) {
+                            activeLogger.info("[{}] extractBody: null, dataPackTargetList: {}, DataPack: {}", PipeSlot.class.getSimpleName(), m, dp);
+                        }
                         continue;
                     }
 
@@ -251,6 +271,9 @@ public class PipeSlot {
                     String deviceId = m.getMark().split("\\|")[1];
                     if (StringUtils.isBlank(deviceId)) {
                         s_logger.error("Invalid data: no deviceId!", deviceId);
+                        if (isActivateData) {
+                            activeLogger.error("[{}] Invalid data: no deviceId:[{}]", PipeSlot.class.getSimpleName(), deviceId);
+                        }
                         continue;
                     }
 
@@ -258,6 +281,9 @@ public class PipeSlot {
                     String vin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH, deviceId);
                     if (StringUtils.isBlank(vin)) {
                         s_logger.error("Invalid deviceId({}): no vin!", deviceId);
+                        if (isActivateData) {
+                            activeLogger.error("[{}] Invalid deviceId({}): no vin!", PipeSlot.class.getSimpleName(), deviceId);
+                        }
                         continue;
                     }
 
@@ -314,19 +340,25 @@ public class PipeSlot {
             // 1.设置网关接收时间
             DataPackObject dataPackObject = target.getDataPackObject();
             dataPackObject.setReceiveTime(receiveTime);
+            String dataType = DataPackObjectUtil.getDataType(dataPackObject);// 数据类型
 
             // 2.判断检测时间无效情况
             Date detectionTime = target.getDataPackObject().getDetectionTime();
             if (DataPackObjectUtil.isLegalDetectionDate(detectionTime)) {
                 // 判断依据：比当前时间晚1个月或者早30分钟视为无效数据，主动丢弃
                 s_logger.info("Legal detection date data: {}", DataPackObjectUtil.toJson(target.getDataPackObject()));
+                if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
+                    activeLogger.info("[{}] Legal detection date data: {}", PipeSlot.class.getSimpleName(), DataPackObjectUtil.toJson(target.getDataPackObject()));
+                }
                 continue;
             }
 
             // 3.创建rowkey和datapack关系
             String detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(detectionTime);
-            String dataType = DataPackObjectUtil.getDataType(dataPackObject);// 数据类型
             String rowKey = RowKeyUtil.makeRowKey(vin, dataType, detectionTimeString);
+            if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
+                activeLogger.info("[{}] Active data rowKey: {}", PipeSlot.class.getSimpleName(), rowKey);
+            }
             mapDataPackObjects.put(rowKey, dataPackObject);
 
             // 4、监控车辆状态信息
@@ -346,15 +378,22 @@ public class PipeSlot {
     protected void saveDataPackObject(String rowKey, DataPackObject dataPackObject, Date receiveTime) {
         // 打印日志
         s_logger.debug("saveDataPackObject: {}, {}", rowKey, dataPackObject);
-
+        //获取数据类型，以便打印激活数据日志
+        String dataType = DataPackObjectUtil.getDataType(dataPackObject);
         try {
             // 保存数据
             _host.saveDataPackObject(rowKey, dataPackObject);
             s_logger.debug("Save {} success!", rowKey);
+            if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
+                activeLogger.debug("[{}] Save {} success!", PipeSlot.class.getSimpleName(), rowKey);
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
             s_logger.error("Save failed: {}, {}", rowKey, e.getMessage());
+            if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
+                activeLogger.error("[{}] Save failed: {}, {}", PipeSlot.class.getSimpleName(), rowKey, e.getMessage());
+            }
         }
     }
 
@@ -496,7 +535,9 @@ public class PipeSlot {
          */
         int type = Constants.HeartbeatType.NORMAL;
         Date time = dataPackObject.getReceiveTime();
-        String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
+
+//        String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(time);
+        String timeStr = DateFormatUtils.format(time, "yyyy-MM-dd HH:mm:ss");
         if (dataPackObject instanceof DataPackLogIn || dataPackObject instanceof DataPackLogOut) {
             // VIN与设备号建立关系 （永久）
             cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_VIN_HASH, vin, deviceId);
@@ -540,5 +581,17 @@ public class PipeSlot {
 
         //连线过的车辆关系 （永久）-- 所有数据均为心跳数据
         cacheManager.hset(Constants.CacheNamespaceKey.CACHE_VEHICLE_HEARTBEAT_HASH, vin, GsonFactory.newInstance().createGson().toJson(map));
+    }
+
+    /**
+     * 判断是否是激活报文
+     * @param dataPackBytes
+     * @return
+     */
+    private boolean isActivateData(byte[] dataPackBytes) {
+        if (null != dataPackBytes && dataPackBytes.length > 4 && (dataPackBytes[4] & 0xFF) == 0x12) {
+            return true;
+        }
+        return false;
     }
 }
