@@ -348,7 +348,7 @@ public class PipeSlot {
                 // 判断依据：比当前时间晚1个月或者早30分钟视为无效数据，主动丢弃
                 s_logger.info("Legal detection date data: {}", DataPackObjectUtil.toJson(target.getDataPackObject()));
                 if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
-                    activeLogger.info("[{}] Legal detection date data: {}", PipeSlot.class.getSimpleName(), DataPackObjectUtil.toJson(target.getDataPackObject()));
+                    activeLogger.info("[{}] illegal detection date data: {}", PipeSlot.class.getSimpleName(), DataPackObjectUtil.toJson(target.getDataPackObject()));
                 }
                 continue;
             }
@@ -392,7 +392,7 @@ public class PipeSlot {
             e.printStackTrace();
             s_logger.error("Save failed: {}, {}", rowKey, e.getMessage());
             if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
-                activeLogger.error("[{}] Save failed: {}, {}", PipeSlot.class.getSimpleName(), rowKey, e.getMessage());
+                activeLogger.error("[{}] Save failed: {}, exception: {}", PipeSlot.class.getSimpleName(), rowKey, ExceptionUtils.getStackTrace(e));
             }
         }
     }
