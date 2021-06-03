@@ -46,6 +46,11 @@ public class PipeSlot {
     private static Logger activeLogger = LoggerFactory.getLogger("activeLogger");
 
     /**
+     * 故障日志
+     */
+    private static Logger faultLogger = LoggerFactory.getLogger("faultLogger");
+
+    /**
      * 一批次接受消息的数量
      */
     private static final int BATCH_RECEIVE_SIZE = 200;
@@ -249,6 +254,10 @@ public class PipeSlot {
                     if (isActivateData) {
                         activeLogger.info("[{}] Pipe receive active bytes:{}", PipeSlot.class.getSimpleName(), ByteBufUtil.hexDump(dp.getDataBytes()));
                     }
+                    boolean isFaultData = isFaultData(dp.getDataBytes());
+                    if (isFaultData) {
+                        faultLogger.info("[{}] Pipe receive fault bytes:{}", PipeSlot.class.getSimpleName(), ByteBufUtil.hexDump(dp.getDataBytes()));
+                    }
 
                     // 获得解析器
                     IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
@@ -353,12 +362,14 @@ public class PipeSlot {
                 continue;
             }
 
+
             // 3.创建rowkey和datapack关系
             String detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(detectionTime);
             String rowKey = RowKeyUtil.makeRowKey(vin, dataType, detectionTimeString);
             if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
                 activeLogger.info("[{}] Active data rowKey: {}", PipeSlot.class.getSimpleName(), rowKey);
             }
+
             mapDataPackObjects.put(rowKey, dataPackObject);
 
             // 4、监控车辆状态信息
@@ -387,12 +398,18 @@ public class PipeSlot {
             if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
                 activeLogger.debug("[{}] Save {} success!", PipeSlot.class.getSimpleName(), rowKey);
             }
+            if (DataPackObjectUtil.FAULT.equals(dataType)) {
+                faultLogger.debug("[{}] Save fault data success! rowKey:{}, data:{}", PipeSlot.class.getSimpleName(), rowKey, DataPackObjectUtil.toJson(dataPackObject));
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
             s_logger.error("Save failed: {}, {}", rowKey, e.getMessage());
             if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
                 activeLogger.error("[{}] Save failed: {}, exception: {}", PipeSlot.class.getSimpleName(), rowKey, ExceptionUtils.getStackTrace(e));
+            }
+            if (DataPackObjectUtil.FAULT.equals(dataType)) {
+                faultLogger.error("[{}] Save fault data failed! rowKey:{}, data:{} \n exception:{}", PipeSlot.class.getSimpleName(), rowKey, DataPackObjectUtil.toJson(dataPackObject), ExceptionUtils.getStackTrace(e));
             }
         }
     }
@@ -590,6 +607,16 @@ public class PipeSlot {
      */
     private boolean isActivateData(byte[] dataPackBytes) {
         if (null != dataPackBytes && dataPackBytes.length > 4 && (dataPackBytes[4] & 0xFF) == 0x12) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 判断是否是故障报文
+     */
+    private boolean isFaultData(byte[] dataPackBytes) {
+        if (null != dataPackBytes && dataPackBytes.length > 4 && ((dataPackBytes[4] & 0xFF) == 0x0C || (dataPackBytes[4] & 0xFF) == 0x27)) {
             return true;
         }
         return false;
