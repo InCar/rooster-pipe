@@ -306,7 +306,7 @@ public class PipeSlot {
 
                     // 打印转成json之前的数据
                     if (isFaultData) {
-                        faultLogger.debug("Fault DataPackTargetList To String：{}", dataPackTargetList.toString());
+                        faultLogger.debug("vin={}, deviceId={}, Fault DataPackTargetList To String {}", vin, deviceId, dataPackTargetList.toString());
                     }
 
                     // 永久保存数据到BigTable
