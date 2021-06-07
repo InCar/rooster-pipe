@@ -304,6 +304,10 @@ public class PipeSlot {
                         }
                     });
 
+                    // 打印转成json之前的数据
+                    if (isFaultData) {
+                        faultLogger.debug("Fault DataPackTargetList To String：{}", dataPackTargetList.toString());
+                    }
 
                     // 永久保存数据到BigTable
                     Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
