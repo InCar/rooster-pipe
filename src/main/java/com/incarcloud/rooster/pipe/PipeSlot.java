@@ -8,19 +8,14 @@ import com.incarcloud.rooster.share.Constants;
 import com.incarcloud.rooster.util.DataPackObjectUtil;
 import com.incarcloud.rooster.util.GsonFactory;
 import com.incarcloud.rooster.util.RowKeyUtil;
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.Unpooled;
-import io.netty.util.ReferenceCountUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
-import org.apache.commons.lang3.time.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
@@ -306,7 +301,8 @@ public class PipeSlot {
 
                     // 打印转成json之前的数据
                     if (isFaultData) {
-                        faultLogger.debug("vin={}, deviceId={}, Fault DataPackTargetList To String {}", vin, deviceId, dataPackTargetList.toString());
+                        faultLogger.debug("vin={}, detectTime:{}, Fault DataPackTargetList: {}", vin,
+                                DateFormatUtils.format(dataPackTargetList.get(0).getDataPackObject().getDetectionTime(), "yyyyMMddHHmmss"), dataPackTargetList);
                     }
 
                     // 永久保存数据到BigTable
@@ -395,6 +391,9 @@ public class PipeSlot {
         s_logger.debug("saveDataPackObject: {}, {}", rowKey, dataPackObject);
         //获取数据类型，以便打印激活数据日志
         String dataType = DataPackObjectUtil.getDataType(dataPackObject);
+        if (DataPackObjectUtil.FAULT.equals(dataType)) {
+            faultLogger.debug("rowKey={}, fault dataPackObject before save: {}", rowKey, DataPackObjectUtil.toJson(dataPackObject));
+        }
         try {
             // 保存数据
             _host.saveDataPackObject(rowKey, dataPackObject);
