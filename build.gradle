@@ -1,5 +1,6 @@
 group 'com.incarcloud'
-version '2.4.18-SNAPSHOT'
+//version '2.4.18-SNAPSHOT'
+version '1.0.0-TEMP'
 
 allprojects {
     apply plugin: 'java'
@@ -15,7 +16,8 @@ allprojects {
         MAVEN_AUTH_USERNAME = 'deployment'
         MAVEN_AUTH_PASSWORD = 'AskForAdminIfUpload'
 
-        roosterVersion = "2.4.+"
+//        roosterVersion = "2.4.+"
+        roosterVersion = "1.0.0-TEMP"
     }
 
     repositories {

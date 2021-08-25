@@ -4,13 +4,12 @@ import com.incarcloud.rooster.bigtable.IBigTable;
 import com.incarcloud.rooster.datapack.DataPackObject;
 import com.incarcloud.rooster.datapack.DataParserManager;
 import com.incarcloud.rooster.mq.IBigMQ;
+import org.apache.commons.lang3.time.DateFormatUtils;
+import org.apache.commons.lang3.time.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author Xiong Guanghua
@@ -90,6 +89,11 @@ public class PipeHost {
     private Boolean _bRunning = false;
 
     /**
+     * 数据分开存储 日期分割点 （与业务无关的属性，只为配合Hbase数据分表存储）
+     */
+    private String splitDate;
+
+    /**
      * 默认构造函数
      */
     public PipeHost() {
@@ -156,7 +160,16 @@ public class PipeHost {
      * @throws Exception
      */
     public void saveDataPackObject(String rowKey, DataPackObject data) throws Exception {
-        bigTable.saveDataPackObject(rowKey, data);
+        // 采集日期在日期分割点之前的存入之前的表，否则存入月分表
+        Date detectionTime = data.getDetectionTime();
+        Date date = DateUtils.parseDate(this.splitDate, "yyyy-MM-dd");
+        if (detectionTime.getTime() < date.getTime()) {
+            bigTable.saveDataPackObject(rowKey, data);
+        } else {
+            String month = DateFormatUtils.format(detectionTime, "yyyyMM");
+            bigTable.saveDataPackObject(rowKey, data, month);
+        }
+
     }
 
     /**
@@ -290,5 +303,13 @@ public class PipeHost {
 
     public void setDbPushTopic(String dbPushTopic) {
         this.dbPushTopic = dbPushTopic;
+    }
+
+    public String getSplitDate() {
+        return splitDate;
+    }
+
+    public void setSplitDate(String splitDate) {
+        this.splitDate = splitDate;
     }
 }
