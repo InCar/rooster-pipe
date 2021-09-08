@@ -90,11 +90,11 @@ public class PipeSlot {
     /**
      * 统计数据条数
      */
-    private AtomicLong totalDatas = new AtomicLong(0) ;
+    private AtomicLong totalDatas = new AtomicLong(0);
     /**
      * 统计花费时间
      */
-    private AtomicLong userTimes = new AtomicLong(0) ;
+    private AtomicLong userTimes = new AtomicLong(0);
 
     /**
      * 定时任务
@@ -107,11 +107,11 @@ public class PipeSlot {
     public void start() {
 
         // 数据监控
-        executorService.scheduleAtFixedRate(()->{
+        executorService.scheduleAtFixedRate(() -> {
             if (totalDatas.get() != 0) {
                 s_logger.info("storage avg duration --> : {}", userTimes.get() / totalDatas.get());
             }
-        },10,10, TimeUnit.SECONDS) ;
+        }, 10, 10, TimeUnit.SECONDS);
 
         s_logger.info(name + " start receive message!!!");
         isRunning = true;
@@ -237,7 +237,7 @@ public class PipeSlot {
                 DataPack dp = null;
 
                 try {
-                    long start = System.currentTimeMillis() ;
+                    long start = System.currentTimeMillis();
                     // string转到datapack
                     String json = new String(msg);
                     MQMsg m = GsonFactory.newInstance().createGson().fromJson(json, MQMsg.class);
@@ -308,7 +308,7 @@ public class PipeSlot {
                     // 永久保存数据到BigTable
                     Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
 
-                    userTimes.addAndGet((System.currentTimeMillis()-start)) ;
+                    userTimes.addAndGet((System.currentTimeMillis() - start));
 
                     // 分发数据
                     if (PipeHost.DEFAULT_HOST_ROLE.equals(_host.getRole())) {
@@ -431,7 +431,7 @@ public class PipeSlot {
             // 保持数据到BigTable
             saveDataPackObject(key, value, receiveTime);
             //数据+1
-            totalDatas.addAndGet(1) ;
+            totalDatas.addAndGet(1);
         });
 
         return mapDataPackObjects;
@@ -472,6 +472,14 @@ public class PipeSlot {
 
             } else if (object instanceof DataPackSettingCompleted) {
                 // 分发T-BOX参数设置完成数据
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
+            } else if (object instanceof DataPackEcallData) {
+                // 分发车辆ecall数据
+                cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
+
+            } else if (object instanceof DataPackEcallEvent) {
+                // 分发车辆ecall事件日志数据
                 cacheManager.lpush(Constants.CacheNamespaceKey.CACHE_MESSAGE_QUEUE, key);
 
             } else if (object instanceof DataPackAlarmSettingCompleted) {
@@ -605,6 +613,7 @@ public class PipeSlot {
 
     /**
      * 判断是否是激活报文
+     *
      * @param dataPackBytes
      * @return
      */
