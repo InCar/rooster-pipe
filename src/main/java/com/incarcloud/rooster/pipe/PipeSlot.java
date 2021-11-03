@@ -8,7 +8,6 @@ import com.incarcloud.rooster.share.Constants;
 import com.incarcloud.rooster.util.DataPackObjectUtil;
 import com.incarcloud.rooster.util.GsonFactory;
 import com.incarcloud.rooster.util.RowKeyUtil;
-import io.netty.buffer.ByteBufUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
@@ -35,15 +34,6 @@ public class PipeSlot {
      */
     private static Logger s_logger = LoggerFactory.getLogger(PipeSlot.class);
 
-    /**
-     * 激活日志
-     */
-    private static Logger activeLogger = LoggerFactory.getLogger("activeLogger");
-
-    /**
-     * 故障日志
-     */
-    private static Logger faultLogger = LoggerFactory.getLogger("faultLogger");
 
     /**
      * 一批次接受消息的数量
@@ -244,16 +234,6 @@ public class PipeSlot {
                     dp = DataPack.deserializeFromBytes(m.getData());
                     s_logger.debug("DataPack: {}", dp.toString());
 
-                    // 获取报文类型, 打印激活报文日志
-                    boolean isActivateData = isActivateData(dp.getDataBytes());
-                    if (isActivateData) {
-                        activeLogger.info("[{}] Pipe receive active bytes:{}", PipeSlot.class.getSimpleName(), ByteBufUtil.hexDump(dp.getDataBytes()));
-                    }
-                    boolean isFaultData = isFaultData(dp.getDataBytes());
-                    if (isFaultData) {
-                        faultLogger.info("[{}] Pipe receive fault bytes:{}", PipeSlot.class.getSimpleName(), ByteBufUtil.hexDump(dp.getDataBytes()));
-                    }
-
                     // 获得解析器
                     IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
                     if (null == dataParser) {
@@ -265,9 +245,6 @@ public class PipeSlot {
                     List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);// 同一个DataPack解出的数据列表
                     if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
                         s_logger.info("extractBody: null, dataPackTargetList: {}, DataPack: {}", m, dp);
-                        if (isActivateData) {
-                            activeLogger.info("[{}] extractBody: null, dataPackTargetList: {}, DataPack: {}", PipeSlot.class.getSimpleName(), m, dp);
-                        }
                         continue;
                     }
 
@@ -275,9 +252,6 @@ public class PipeSlot {
                     String deviceId = m.getMark().split("\\|")[1];
                     if (StringUtils.isBlank(deviceId)) {
                         s_logger.error("Invalid data: no deviceId!", deviceId);
-                        if (isActivateData) {
-                            activeLogger.error("[{}] Invalid data: no deviceId:[{}]", PipeSlot.class.getSimpleName(), deviceId);
-                        }
                         continue;
                     }
 
@@ -285,9 +259,6 @@ public class PipeSlot {
                     String vin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH, deviceId);
                     if (StringUtils.isBlank(vin)) {
                         s_logger.error("Invalid deviceId({}): no vin!", deviceId);
-                        if (isActivateData) {
-                            activeLogger.error("[{}] Invalid deviceId({}): no vin!", PipeSlot.class.getSimpleName(), deviceId);
-                        }
                         continue;
                     }
 
@@ -299,11 +270,6 @@ public class PipeSlot {
                         }
                     });
 
-                    // 打印转成json之前的数据
-                    if (isFaultData) {
-                        faultLogger.debug("vin={}, detectTime:{}, Fault DataPackTargetList: {}", vin,
-                                DateFormatUtils.format(dataPackTargetList.get(0).getDataPackObject().getDetectionTime(), "yyyyMMddHHmmss"), dataPackTargetList);
-                    }
 
                     // 永久保存数据到BigTable
                     Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
@@ -356,9 +322,6 @@ public class PipeSlot {
             if (DataPackObjectUtil.isLegalDetectionDate(detectionTime)) {
                 // 判断依据：比当前时间晚1个月或者早30分钟视为无效数据，主动丢弃
                 s_logger.info("Legal detection date data: {}", DataPackObjectUtil.toJson(target.getDataPackObject()));
-                if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
-                    activeLogger.info("[{}] illegal detection date data: {}", PipeSlot.class.getSimpleName(), DataPackObjectUtil.toJson(target.getDataPackObject()));
-                }
                 continue;
             }
 
@@ -366,9 +329,6 @@ public class PipeSlot {
             // 3.创建rowkey和datapack关系
             String detectionTimeString = DataPackObjectUtil.convertDetectionTimeToString(detectionTime);
             String rowKey = RowKeyUtil.makeRowKey(vin, dataType, detectionTimeString);
-            if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
-                activeLogger.info("[{}] Active data rowKey: {}", PipeSlot.class.getSimpleName(), rowKey);
-            }
 
             mapDataPackObjects.put(rowKey, dataPackObject);
 
@@ -391,29 +351,14 @@ public class PipeSlot {
         s_logger.debug("saveDataPackObject: {}, {}", rowKey, dataPackObject);
         //获取数据类型，以便打印激活数据日志
         String dataType = DataPackObjectUtil.getDataType(dataPackObject);
-        if (DataPackObjectUtil.FAULT.equals(dataType)) {
-            faultLogger.debug("rowKey={}, fault dataPackObject before save: {}", rowKey, DataPackObjectUtil.toJson(dataPackObject));
-        }
         try {
             // 保存数据
             _host.saveDataPackObject(rowKey, dataPackObject);
             s_logger.debug("Save {} success!", rowKey);
-            if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
-                activeLogger.debug("[{}] Save {} success!", PipeSlot.class.getSimpleName(), rowKey);
-            }
-            if (DataPackObjectUtil.FAULT.equals(dataType)) {
-                faultLogger.debug("[{}] Save fault data success! rowKey:{}, data:{}", PipeSlot.class.getSimpleName(), rowKey, DataPackObjectUtil.toJson(dataPackObject));
-            }
 
         } catch (Exception e) {
             e.printStackTrace();
             s_logger.error("Save failed: {}, {}", rowKey, e.getMessage());
-            if (DataPackObjectUtil.ACTIVATION.equals(dataType)) {
-                activeLogger.error("[{}] Save failed: {}, exception: {}", PipeSlot.class.getSimpleName(), rowKey, ExceptionUtils.getStackTrace(e));
-            }
-            if (DataPackObjectUtil.FAULT.equals(dataType)) {
-                faultLogger.error("[{}] Save fault data failed! rowKey:{}, data:{} \n exception:{}", PipeSlot.class.getSimpleName(), rowKey, DataPackObjectUtil.toJson(dataPackObject), ExceptionUtils.getStackTrace(e));
-            }
         }
     }
 
