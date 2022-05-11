@@ -9,18 +9,14 @@ import com.incarcloud.rooster.util.DataPackObjectUtil;
 import com.incarcloud.rooster.util.GsonFactory;
 import com.incarcloud.rooster.util.RowKeyUtil;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author Xiong Guanghua
@@ -28,32 +24,47 @@ import java.util.concurrent.atomic.AtomicLong;
  * @date 2017年6月2日 下午3:55:17
  */
 public class PipeSlot {
+    static final int maxBlockingNum = 300000;
+    static final AtomicInteger blockingNum = new AtomicInteger();
+    static final AtomicInteger consumeNum = new AtomicInteger();
+    static final AtomicInteger processNum = new AtomicInteger();
+    static final AtomicInteger saveNum = new AtomicInteger();
+    static final AtomicInteger errorNum = new AtomicInteger();
+
+    static ScheduledExecutorService pool_monitor;
+
+    static {
+        startMonitor();
+    }
+
+    static final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+
+    private static final ThreadPoolExecutor pool_work = (ThreadPoolExecutor) Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() << 1);
+    private static final ThreadPoolExecutor pool_save = (ThreadPoolExecutor) Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() << 3);
+
+    private static void startMonitor() {
+        pool_monitor = Executors.newSingleThreadScheduledExecutor();
+        pool_monitor.scheduleAtFixedRate(() -> {
+            final int count1 = consumeNum.getAndSet(0);
+            final int count2 = processNum.getAndSet(0);
+            final int count3 = saveNum.getAndSet(0);
+            final int count4 = errorNum.getAndSet(0);
+            s_logger.info("-------blockingNum:{} consumeSpeed:{} blocking:{} processSpeed:{}/{} blocking:{} saveSpeed:{}",
+                    blockingNum.get(), count1 / 3, pool_work.getQueue().size(), count2 / 3, count4 / 3, pool_save.getQueue().size(), count3 / 3);
+        }, 3, 3, TimeUnit.SECONDS);
+    }
+
 
     /**
      * Logger
      */
-    private static Logger s_logger = LoggerFactory.getLogger(PipeSlot.class);
+    private static final Logger s_logger = LoggerFactory.getLogger(PipeSlot.class);
 
-
-    /**
-     * 一批次接受消息的数量
-     */
-    private static final int BATCH_RECEIVE_SIZE = 200;
-
-    /**
-     * 初始化处理队列线程数量
-     */
-    private static final int DEAL_QUEUE_THREAD = 50;
 
     /**
      * 名称
      */
     private String name;
-
-    /**
-     * slot是否继续工作
-     */
-    private volatile boolean isRunning = false;
 
     /**
      * 采集槽所在主机
@@ -78,222 +89,118 @@ public class PipeSlot {
     }
 
     /**
-     * 统计数据条数
-     */
-    private AtomicLong totalDatas = new AtomicLong(0);
-    /**
-     * 统计花费时间
-     */
-    private AtomicLong userTimes = new AtomicLong(0);
-
-    /**
-     * 定时任务
-     */
-    private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(1);
-
-    /**
      * 启动
      */
     public void start() {
-
-        // 数据监控
-        executorService.scheduleAtFixedRate(() -> {
-            if (totalDatas.get() != 0) {
-                s_logger.info("storage avg duration --> : {}", userTimes.get() / totalDatas.get());
-            }
-        }, 10, 10, TimeUnit.SECONDS);
-
         s_logger.info(name + " start receive message!!!");
-        isRunning = true;
-
-        Thread workThread = new Thread(new PipeSlotReceiveDateProcess(name + "-PipeSlotProcess-" + 0, _host.getReceiveDataMQ()));
-        workThread.start();
-
+        run();
         s_logger.info(name + " start success!!!");
     }
 
-    /**
-     * 停止
-     */
-    public void stop() {
-        isRunning = false;// 等待线程自己结束
+
+    public void run() {
+        // 只获取MQ消息放入队列，不进行别的操作，为了加快消费MQ消息
+        final IBigMQ receiveDataMQ = _host.getReceiveDataMQ();
+        try {
+            while (true) {
+                // 消费MQ消息
+                List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), 200);
+                if (msgList != null && !msgList.isEmpty()) {
+                    consumeNum.addAndGet(msgList.size());
+                    blockingNum.addAndGet(msgList.size());
+                    for (byte[] bytes : msgList) {
+                        pool_work.execute(() -> {
+                            dealMQMsg(bytes);
+                        });
+                    }
+
+                }
+                while (blockingNum.get() >= maxBlockingNum) {
+                    //如果达到最大数量、休眠100ms
+                    TimeUnit.MILLISECONDS.sleep(100);
+                }
+            }
+        } catch (InterruptedException ex) {
+            s_logger.error("error", ex);
+        }
+
+        // 停止后释放连接
+        receiveDataMQ.releaseCurrentConn(_host.getReceiveDataTopic());
     }
 
+
     /**
-     * slot主要工作线程
+     * 处理MQ消息
+     *
+     * @param msg 消息列表
      */
-    private class PipeSlotReceiveDateProcess implements Runnable {
+    private void dealMQMsg(byte[] msg) {
+        // 处理消息
+        try {
+            // string转到datapack
+            String json = new String(msg);
+            MQMsg m = GsonFactory.newInstance().createGson().fromJson(json, MQMsg.class);
+            DataPack dp = DataPack.deserializeFromBytes(m.getData());
+            s_logger.debug("DataPack: {}", dp.toString());
 
-        /**
-         * 线程名称
-         */
-        private String name;
-        private IBigMQ receiveDataMQ;
-
-        public PipeSlotReceiveDateProcess(String name, IBigMQ receiveDataMQ) {
-            this.name = name;
-            this.receiveDataMQ = receiveDataMQ;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-
-        /**
-         * 并发队列-无界非阻塞队列
-         */
-        private Queue<List<byte[]>> queue = new ConcurrentLinkedQueue<>();
-
-        @Override
-        public void run() {
-
-            // 开启线程消费队列消息 DEAL_QUEUE_THREAD * 4 = 200
-            for (int i = 0; i < DEAL_QUEUE_THREAD * 4; i++) {
-                new Thread(() -> dealQueueMsg()).start();
-            }
-
-            // 只获取MQ消息放入队列，不进行别的操作，为了加快消费MQ消息
-            while (isRunning) {
-                // 消费MQ消息
-                List<byte[]> msgList = receiveDataMQ.batchReceive(_host.getReceiveDataTopic(), BATCH_RECEIVE_SIZE);
-
-                // 如果消息列表为空，等待1000毫秒
-                if (null == msgList || 0 == msgList.size()) {
-                    // 打印消息队列名称
-                    s_logger.debug("{} receive no message!!!", name);
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        s_logger.error(ExceptionUtils.getMessage(e));
-                    }
-                    continue;
-                }
-
-                // 存放无边界消息队列
-                queue.add(msgList);
-
-                // 如果队列消息大于5000没有消息，则等待，一般情况不会达到
-                if (queue.size() > 5000) {
-                    s_logger.info("queue msg accumulation, waiting 1s ...");
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-
-            // 停止后释放连接
-            receiveDataMQ.releaseCurrentConn(_host.getReceiveDataTopic());
-        }
-
-        /**
-         * 消费队列消息
-         */
-        private void dealQueueMsg() {
-            while (true) {
-                if (queue.size() > 0) {
-                    List<byte[]> msgList = queue.poll();
-                    if (null == msgList) {
-                        continue;
-                    }
-                    dealMQMsg(msgList);
-                } else {
-                    /**
-                     * 没有数据则等待1S再处理
-                     */
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-
-        /**
-         * 处理MQ消息
-         *
-         * @param msgList 消息列表
-         */
-        private void dealMQMsg(List<byte[]> msgList) {
-            if (null == msgList || msgList.size() == 0) {
+            // 获得解析器
+            IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
+            if (null == dataParser) {
+                s_logger.error("Not support: {}!!!", dp.getProtocol());
                 return;
             }
 
-            // 处理消息
-            for (byte[] msg : msgList) {
-                DataPack dp = null;
-
-                try {
-                    long start = System.currentTimeMillis();
-                    // string转到datapack
-                    String json = new String(msg);
-                    MQMsg m = GsonFactory.newInstance().createGson().fromJson(json, MQMsg.class);
-                    dp = DataPack.deserializeFromBytes(m.getData());
-                    s_logger.debug("DataPack: {}", dp.toString());
-
-                    // 获得解析器
-                    IDataParser dataParser = DataParserManager.getDataParser(dp.getProtocol());
-                    if (null == dataParser) {
-                        s_logger.error("Not support: {}!!!", dp.getProtocol());
-                        continue;
-                    }
-
-                    // 调用解析器解析完整报文
-                    List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);// 同一个DataPack解出的数据列表
-                    if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
-                        s_logger.info("extractBody: null, dataPackTargetList: {}, DataPack: {}", m, dp);
-                        continue;
-                    }
-
-                    // 获取消息中传过来的deviceId
-                    String deviceId = m.getMark().split("\\|")[1];
-                    if (StringUtils.isBlank(deviceId)) {
-                        s_logger.error("Invalid data: no deviceId!", deviceId);
-                        continue;
-                    }
-
-                    // 从缓存提取VIN信息
-                    String vin = cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH, deviceId);
-                    if (StringUtils.isBlank(vin)) {
-                        s_logger.error("Invalid deviceId({}): no vin!", deviceId);
-                        continue;
-                    }
-
-                    // 完善DataPack信息，主要是车架号
-                    dataPackTargetList.forEach(object -> {
-                        if (null != object.getDataPackObject()) {
-                            // 完善车架号
-                            object.getDataPackObject().setVin(vin);
-                        }
-                    });
-
-
-                    // 永久保存数据到BigTable
-                    Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
-
-                    userTimes.addAndGet((System.currentTimeMillis() - start));
-
-                    // 分发数据
-                    if (PipeHost.DEFAULT_HOST_ROLE.equals(_host.getRole())) {
-                        // 只有主节点支持数据分发
-                        dispatchDataPacks(dp, mapDataPackObjects);
-                    }
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    s_logger.error("Deal with msg error, {}, \n{}, \n{}", new String(msg), ExceptionUtils.getMessage(e), e.getMessage());
-                } finally {
-                    if (null != dp) {
-                        dp.freeBuf();
-                    }
-                }
+            // 调用解析器解析完整报文
+            List<DataPackTarget> dataPackTargetList = dataParser.extractBody(dp);// 同一个DataPack解出的数据列表
+            if (null == dataPackTargetList || 0 == dataPackTargetList.size()) {
+                s_logger.info("extractBody: null, dataPackTargetList: {}, DataPack: {}", m, dp);
+                return;
             }
-        }
 
+            // 获取消息中传过来的deviceId
+            String deviceId = m.getMark().split("\\|")[1];
+            if (StringUtils.isBlank(deviceId)) {
+                s_logger.error("Invalid data: no deviceId!", deviceId);
+                return;
+            }
+
+            // 从缓存提取VIN信息
+            final String vin = cache.computeIfAbsent(deviceId, k -> cacheManager.hget(Constants.CacheNamespaceKey.CACHE_DEVICE_ID_HASH, k));
+            if (StringUtils.isBlank(vin)) {
+                s_logger.error("Invalid deviceId({}): no vin!", deviceId);
+                return;
+            }
+
+            // 完善DataPack信息，主要是车架号
+            dataPackTargetList.forEach(object -> {
+                if (null != object.getDataPackObject()) {
+                    // 完善车架号
+                    object.getDataPackObject().setVin(vin);
+                }
+            });
+            processNum.incrementAndGet();
+
+            //异步保存
+            pool_save.execute(() -> {
+                // 永久保存数据到BigTable
+                Map<String, DataPackObject> mapDataPackObjects = saveDataPacks(vin, dataPackTargetList, dp.getReceiveTime());
+                // 分发数据
+                if (PipeHost.DEFAULT_HOST_ROLE.equals(_host.getRole())) {
+                    // 只有主节点支持数据分发
+                    dispatchDataPacks(dp, mapDataPackObjects);
+                }
+                saveNum.incrementAndGet();
+                blockingNum.decrementAndGet();
+            });
+
+
+        } catch (Exception e) {
+            blockingNum.decrementAndGet();
+            errorNum.incrementAndGet();
+            s_logger.error("Deal with msg error, {}", new String(msg), e);
+        }
     }
+
 
     /**
      * 纠正检测时间和维护车辆状态缓存
@@ -375,8 +282,6 @@ public class PipeSlot {
         mapDataPackObjects.forEach((key, value) -> {
             // 保持数据到BigTable
             saveDataPackObject(key, value, receiveTime);
-            //数据+1
-            totalDatas.addAndGet(1);
         });
 
         return mapDataPackObjects;

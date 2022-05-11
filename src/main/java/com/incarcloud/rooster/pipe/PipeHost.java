@@ -132,10 +132,6 @@ public class PipeHost {
      * 停止
      */
     public void stop() {
-        for (PipeSlot slot : _slots) {
-            slot.stop();
-        }
-
         bigTable.close();
         receiveDataMQ.close();
 
